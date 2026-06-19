@@ -96,7 +96,46 @@
     .chip.kind { background: rgba(125,133,144,0.15); color: var(--muted); }
     .badge.applied { background: rgba(63,185,80,0.15); color: var(--green); }
     .badge.rolled_back { background: rgba(210,153,34,0.15); color: var(--amber); }
+    .badge.rollback_requested { background: rgba(88,166,255,0.15); color: var(--accent); }
     .badge.failed { background: rgba(248,81,73,0.15); color: var(--red); }
+    /* live training log feed */
+    .logfeed {
+      font-family: var(--mono); font-size: 0.78rem; line-height: 1.5;
+      max-height: 280px; overflow-y: auto; border-radius: 8px;
+      background: #0b1019; border: 1px solid var(--border); padding: 0.6rem 0.8rem;
+    }
+    .logline { display: flex; gap: 1.1rem; padding: 0.08rem 0; white-space: nowrap; }
+    .logline .lstep { color: var(--muted); width: 4.5rem; }
+    .logline .lloss { color: var(--accent); width: 9rem; }
+    .logline .lgrad { color: var(--text); width: 11rem; }
+    .logline .llr { color: var(--muted); }
+    .logline.alert { background: rgba(248,81,73,0.10); border-radius: 4px; }
+    .logline.alert .lloss, .logline.alert .lgrad { color: var(--red); font-weight: 600; }
+    .logline .tag { color: var(--red); font-weight: 700; }
+    /* code fix cards */
+    .fixlist { display: flex; flex-direction: column; gap: 0.9rem; }
+    .fixcard { border: 1px solid var(--border); border-radius: 9px; padding: 0.85rem 1rem; background: #0e141f; }
+    .fix-head { display: flex; align-items: center; gap: 0.6rem; flex-wrap: wrap; }
+    .fix-head .file { font-family: var(--mono); font-size: 0.82rem; color: var(--text); }
+    .fix-head .time { color: var(--muted); font-size: 0.7rem; font-family: var(--mono); margin-left: auto; }
+    .fix-err { margin: 0.55rem 0 0.4rem; font-size: 0.8rem; color: var(--muted); }
+    .fix-err b { color: var(--red); font-weight: 600; }
+    .fix-rationale { font-size: 0.82rem; color: var(--text); margin: 0.25rem 0 0.55rem; }
+    .diff { font-family: var(--mono); font-size: 0.76rem; border-radius: 6px; overflow: hidden; border: 1px solid var(--border); }
+    .diff .row { padding: 0.18rem 0.6rem; white-space: pre-wrap; word-break: break-word; }
+    .diff .del { background: rgba(248,81,73,0.10); color: #ff9b94; }
+    .diff .add { background: rgba(63,185,80,0.10); color: #7ee787; }
+    .diff .del::before { content: "- "; color: var(--red); }
+    .diff .add::before { content: "+ "; color: var(--green); }
+    .fix-foot { display: flex; align-items: center; gap: 0.8rem; flex-wrap: wrap; margin-top: 0.6rem; }
+    .fix-foot .meta { color: var(--muted); font-size: 0.72rem; font-family: var(--mono); }
+    .btn-restore {
+      margin-left: auto; background: var(--panel); color: var(--text);
+      border: 1px solid var(--border); border-radius: 6px;
+      padding: 0.32rem 0.8rem; font: inherit; font-size: 0.76rem; cursor: pointer;
+    }
+    .btn-restore:hover:not(:disabled) { border-color: var(--amber); color: var(--amber); }
+    .btn-restore:disabled { opacity: 0.45; cursor: default; }
     .user-box { display: flex; align-items: center; gap: 0.55rem; }
     .user-email { color: var(--muted); font-size: 0.8rem; font-family: var(--mono); }
     #signout-btn {
@@ -139,6 +178,13 @@
     </section>
 
     <section class="panel">
+      <h2>Live training log <span class="hint" id="logfeed-scope"></span></h2>
+      <div class="logfeed" id="logfeed">
+        <div class="empty">Waiting for steps…</div>
+      </div>
+    </section>
+
+    <section class="panel">
       <h2>Call decisions</h2>
       <table>
         <thead>
@@ -158,15 +204,10 @@
     </section>
 
     <section class="panel">
-      <h2>Code fixes &amp; rollbacks</h2>
-      <table>
-        <thead>
-          <tr><th>time</th><th>file</th><th>reason</th><th>status</th><th>re-run</th></tr>
-        </thead>
-        <tbody id="fixes-body">
-          <tr><td colspan="5" class="empty">No code fixes applied yet.</td></tr>
-        </tbody>
-      </table>
+      <h2>Code fixes &amp; rollbacks <span class="hint">restore reverts the file from its backup</span></h2>
+      <div class="fixlist" id="fixes-body">
+        <div class="empty">No code fixes applied yet.</div>
+      </div>
     </section>
   </div>
 
@@ -287,6 +328,32 @@
       }
     }
 
+    function renderLogFeed(rows) {
+      const el = document.getElementById("logfeed");
+      document.getElementById("logfeed-scope").textContent = selectedRun ? `· ${selectedRun}` : "";
+      if (!rows.length) {
+        el.innerHTML = `<div class="empty">Waiting for steps…</div>`;
+        return;
+      }
+      // stick to bottom only if the user is already near the bottom
+      const stick = el.scrollTop + el.clientHeight >= el.scrollHeight - 40;
+      const view = rows.slice(-120);
+      const offset = rows.length - view.length;
+      el.innerHTML = view.map((r, i) => {
+        const alert = isAnomalyPoint(rows, offset + i);
+        const grad = r.grad_norm != null ? r.grad_norm.toFixed(2) : "—";
+        const lr = r.lr != null ? r.lr : "—";
+        return `<div class="logline ${alert ? "alert" : ""}">
+          <span class="lstep">#${r.step}</span>
+          <span class="lloss">loss ${r.loss.toFixed(4)}</span>
+          <span class="lgrad">grad ${grad}</span>
+          <span class="llr">lr ${lr}</span>
+          ${alert ? '<span class="tag">ANOMALY</span>' : ""}
+        </div>`;
+      }).join("");
+      if (stick) el.scrollTop = el.scrollHeight;
+    }
+
     function renderStats(rows) {
       const latest = rows[rows.length - 1];
       document.getElementById("stat-run").textContent = selectedRun || "—";
@@ -363,20 +430,72 @@
     function renderFixes(rows) {
       const body = document.getElementById("fixes-body");
       if (!rows.length) {
-        body.innerHTML = `<tr><td colspan="5" class="empty">No code fixes applied yet.</td></tr>`;
+        body.innerHTML = `<div class="empty">No code fixes applied yet.</div>`;
         return;
       }
       body.innerHTML = rows.map(r => {
         const status = (r.status || "applied").toLowerCase();
-        return `<tr>
-          <td>${timeAgo(r.created_at)}</td>
-          <td>${esc(r.file)}</td>
-          <td>${esc(r.rationale || "—")}</td>
-          <td><span class="badge ${status}">${esc(status)}</span></td>
-          <td>${esc(r.new_run_id || "—")}</td>
-        </tr>`;
+        const patch = r.patch || {};
+        const edits = Array.isArray(patch.edits) ? patch.edits : [];
+        const err = patch.error || {};
+
+        const diff = edits.length
+          ? `<div class="diff">` + edits.map(e =>
+              `<div class="row del">${esc(e.find)}</div><div class="row add">${esc(e.replace)}</div>`
+            ).join("") + `</div>`
+          : "";
+
+        const errLine = (err.type || err.brief)
+          ? `<div class="fix-err">for error: <b>${esc(err.type || "anomaly")}</b>${err.brief ? ` — ${esc(err.brief)}` : ""}</div>`
+          : "";
+
+        const backup = r.backup_path ? `<span class="meta">backup: ${esc(r.backup_path)}</span>` : "";
+        const rerun = r.new_run_id ? `<span class="meta">re-run: ${esc(r.new_run_id)}</span>` : "";
+
+        const label = status === "rollback_requested" ? "Restoring…"
+          : status === "rolled_back" ? "Restored"
+          : status === "failed" ? "Restore failed"
+          : "Restore this version";
+        const disabled = status === "applied" ? "" : "disabled";
+
+        return `<div class="fixcard">
+          <div class="fix-head">
+            <span class="file">${esc(r.file)}</span>
+            <span class="badge ${status}">${esc(status.replace(/_/g, " "))}</span>
+            <span class="time">${timeAgo(r.created_at)}</span>
+          </div>
+          ${errLine}
+          ${r.rationale ? `<div class="fix-rationale">${esc(r.rationale)}</div>` : ""}
+          ${diff}
+          <div class="fix-foot">
+            ${backup}${rerun}
+            <button class="btn-restore" data-fix-id="${esc(r.id)}" ${disabled}>${label}</button>
+          </div>
+        </div>`;
       }).join("");
     }
+
+    // A "Restore" click can't touch the local filesystem, so it flags the row
+    // for `agents/fix.py watch`, which performs the real rollback from the backup.
+    document.getElementById("fixes-body").addEventListener("click", async (e) => {
+      const btn = e.target.closest(".btn-restore");
+      if (!btn || btn.disabled) return;
+      const id = btn.getAttribute("data-fix-id");
+      btn.disabled = true;
+      btn.textContent = "Restoring…";
+      try {
+        const { error } = await window.db
+          .from("fix_attempts")
+          .update({ status: "rollback_requested" })
+          .eq("id", id);
+        if (error) throw new Error(error.message);
+        tick();
+      } catch (err) {
+        console.error(err);
+        btn.disabled = false;
+        btn.textContent = "Restore failed — retry";
+      }
+    });
 
     async function refreshRunList() {
       // Most recent 200 log rows → distinct run_ids, newest first
@@ -402,6 +521,7 @@
         const logs = await fetchLogs(selectedRun);
         renderChart(logs);
         renderStats(logs);
+        renderLogFeed(logs);
 
         const decisions = await fetchDecisions();
         renderDecisions(decisions);

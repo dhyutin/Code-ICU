@@ -13,6 +13,7 @@ see what was touched and revert it.
 CLI:
     python agents/fix.py list
     python agents/fix.py rollback [change_id]
+    python agents/fix.py watch        # apply restore requests from the dashboard
 """
 
 from __future__ import annotations
@@ -20,6 +21,7 @@ from __future__ import annotations
 import json
 import shutil
 import sys
+import time
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -58,8 +60,12 @@ def propose_fix(error_report: dict, code_context: str, *, file: str, transcript:
     return fix
 
 
-def apply_fix(fix: dict, run_id: str) -> dict:
-    """Back up, apply edits, log to changes.txt, record fix_attempts."""
+def apply_fix(fix: dict, run_id: str, error: dict | None = None) -> dict:
+    """Back up, apply edits, log to changes.txt, record fix_attempts.
+
+    `error` ({type, brief}) is stored alongside the patch so the dashboard can
+    show exactly which failure each change was made for.
+    """
     file = fix["file"]
     p = ROOT / file
     original = p.read_text()
@@ -90,7 +96,7 @@ def apply_fix(fix: dict, run_id: str) -> dict:
             "parent_run_id": run["id"],
             "file": file,
             "rationale": fix.get("rationale", ""),
-            "patch": {"edits": applied_edits},
+            "patch": {"edits": applied_edits, "error": error or {}},
             "backup_path": str(backup.relative_to(ROOT)),
             "status": "applied",
         },
@@ -151,13 +157,38 @@ def rollback(change_id: str | None = None) -> dict:
     return row
 
 
+def watch(interval: int = 4) -> None:
+    """Poll for dashboard-requested restores and perform the actual file rollback.
+
+    The browser can't touch the local filesystem, so a 'Restore' click only flips
+    the row to `rollback_requested`; this loop does the real restore + marks it
+    `rolled_back`. Leave it running during a demo.
+    """
+    print(f"[fix-watch] polling for restore requests every {interval}s (Ctrl-C to stop)", flush=True)
+    while True:
+        try:
+            pending = trace._get(
+                "fix_attempts",
+                {"status": "eq.rollback_requested", "order": "updated_at.asc", "limit": 10},
+            )
+            for row in pending:
+                try:
+                    rollback(row["id"])
+                except Exception as exc:
+                    trace.patch("fix_attempts", row["id"], {"status": "failed"})
+                    print(f"  [fix-watch] rollback {row['id']} failed: {exc}", flush=True)
+        except Exception as exc:
+            print(f"  [fix-watch] poll error: {exc}", flush=True)
+        time.sleep(interval)
+
+
 def _append_log(text: str) -> None:
     with CHANGES_LOG.open("a") as f:
         f.write(text + ("\n" if not text.endswith("\n") else ""))
 
 
 def _cli() -> None:
-    if len(sys.argv) < 2 or sys.argv[1] not in ("list", "rollback"):
+    if len(sys.argv) < 2 or sys.argv[1] not in ("list", "rollback", "watch"):
         print(__doc__)
         return
     if sys.argv[1] == "list":
@@ -170,6 +201,8 @@ def _cli() -> None:
             print(f"    {r.get('rationale', '')}")
     elif sys.argv[1] == "rollback":
         rollback(sys.argv[2] if len(sys.argv) > 2 else None)
+    elif sys.argv[1] == "watch":
+        watch()
 
 
 if __name__ == "__main__":

@@ -126,13 +126,17 @@ def _log_decision(anomaly: dict, report: dict, call_data: dict | None, call_deci
     return decision
 
 
-def _run_fix_loop(report: dict, transcript: str) -> None:
+def _run_fix_loop(report: dict, transcript: str, anomaly: dict) -> None:
     """Agent 5 self-healing: propose -> apply -> register corrected re-run."""
     print(f"  [agent 5] proposing a fix for {TARGET_FILE}...", flush=True)
+    error = {
+        "type": report.get("error_type") or anomaly.get("type"),
+        "brief": anomaly.get("brief", ""),
+    }
     try:
         fix = fix_mod.propose_fix(report, CODE_CTX, file=TARGET_FILE, transcript=transcript)
         trace.log_event(RUN_ID, "conversation_fix", "output", json.dumps(fix), echo=True)
-        result = fix_mod.apply_fix(fix, RUN_ID)
+        result = fix_mod.apply_fix(fix, RUN_ID, error=error)
         print(f"  [agent 5] applied fix change_id={result['change_id']} (backup {result['backup']})", flush=True)
         new_run = fix_mod.spawn_rerun(RUN_ID, result["change_id"])
         print(f"  [agent 5] corrected re-run registered: {new_run}", flush=True)
@@ -175,7 +179,7 @@ def main() -> None:
             call_data = _wait_for_call(call_id)
             decision = _log_decision(result, report, call_data, call_decision)
             if decision == "fix":
-                _run_fix_loop(report, (call_data or {}).get("transcript", "") or "")
+                _run_fix_loop(report, (call_data or {}).get("transcript", "") or "", result)
         else:
             print(f"  [agent 4] no call — {call_decision.get('reason', '')}", flush=True)
             _log_decision(result, report, None, call_decision)
