@@ -44,6 +44,11 @@
       border-radius: 6px; padding: 0.3rem 0.7rem; font-size: 0.78rem;
     }
     .nav-link:hover { border-color: var(--accent); color: var(--accent); }
+    .rerun-link { color: var(--accent); text-decoration: none; font-family: var(--mono); font-size: 0.74rem; font-weight: 600; }
+    .rerun-link:hover { text-decoration: underline; }
+    .lineage { color: var(--muted); font-size: 0.8rem; font-family: var(--mono); margin: -0.4rem 0 0.6rem; }
+    .lineage a { color: var(--accent); text-decoration: none; }
+    .lineage a:hover { text-decoration: underline; }
     select {
       background: var(--panel); color: var(--text);
       border: 1px solid var(--border); border-radius: 6px;
@@ -159,6 +164,7 @@
       <p class="tagline">live training monitor — "I see your run dying. We called."</p>
     </div>
     <div class="controls">
+      <a href="/experiments.html" class="nav-link">Experiments</a>
       <a href="/architecture.html" class="nav-link">Architecture</a>
       <label for="run-select">run</label>
       <select id="run-select"></select>
@@ -456,7 +462,9 @@
           : "";
 
         const backup = r.backup_path ? `<span class="meta">backup: ${esc(r.backup_path)}</span>` : "";
-        const rerun = r.new_run_id ? `<span class="meta">re-run: ${esc(r.new_run_id)}</span>` : "";
+        const rerun = r.new_run_id
+          ? `<a class="rerun-link" data-run="${esc(r.new_run_id)}" href="?run=${encodeURIComponent(r.new_run_id)}">&#8594; directed to next run: ${esc(r.new_run_id)}</a>`
+          : "";
 
         const label = status === "rollback_requested" ? "Restoring…"
           : status === "rolled_back" ? "Restored"
@@ -483,6 +491,26 @@
 
     // A "Restore" click can't touch the local filesystem, so it flags the row
     // for `agents/fix.py watch`, which performs the real rollback from the backup.
+    function selectRun(name) {
+      if (!name) return;
+      selectedRun = name;
+      userPinnedRun = true;
+      const sel = document.getElementById("run-select");
+      if (sel && ![...sel.options].some(o => o.value === name)) {
+        sel.add(new Option(name, name), 0);
+      }
+      if (sel) sel.value = name;
+      tick();
+    }
+
+    // Click the "directed to next run" link → follow the lineage in-page.
+    document.getElementById("fixes-body").addEventListener("click", (e) => {
+      const link = e.target.closest(".rerun-link");
+      if (!link) return;
+      e.preventDefault();
+      selectRun(link.getAttribute("data-run"));
+    });
+
     document.getElementById("fixes-body").addEventListener("click", async (e) => {
       const btn = e.target.closest(".btn-restore");
       if (!btn || btn.disabled) return;
@@ -511,9 +539,10 @@
 
       const sel = document.getElementById("run-select");
       const current = sel.value;
-      sel.innerHTML = seen.map(r => `<option value="${r}">${r}</option>`).join("");
-
       if (!userPinnedRun) selectedRun = seen[0] || null;
+      // keep a pinned/deep-linked run selectable even if it's not in the recent list
+      if (selectedRun && !seen.includes(selectedRun)) seen.unshift(selectedRun);
+      sel.innerHTML = seen.map(r => `<option value="${r}">${r}</option>`).join("");
       sel.value = selectedRun || current;
     }
 
@@ -555,6 +584,8 @@
 
     // Started by the auth gate once a session is confirmed.
     window.startDashboard = function () {
+      const deepRun = new URLSearchParams(location.search).get("run");
+      if (deepRun) { selectedRun = deepRun; userPinnedRun = true; }
       tick();
       setInterval(tick, CONFIG.pollMs);
     };

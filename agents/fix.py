@@ -2,13 +2,15 @@
 """Self-healing loop (agent 5) with safe rollback.
 
 propose_fix  -> Conversation & Fix agent proposes a minimal code edit
-apply_fix    -> backs up the original, applies the edit, appends changes.txt,
+apply_fix    -> backs up the original, applies the edit, logs the change,
                 records a fix_attempts row
 spawn_rerun  -> registers a corrected re-run (new runs row, parent_run_id linked)
+                and launches it
 rollback     -> restores a change from its backup and marks it rolled_back
 
-Every applied change is human-readably logged to changes.txt so you can always
-see what was touched and revert it.
+Each run gets its own folder under `runs/<run_id>/` holding that run's
+`changes.txt`, `backups/`, and (for a launched re-run) `rerun.log` — so every
+demo run's history lives in one place and any change is reversible.
 
 CLI:
     python agents/fix.py list
@@ -33,14 +35,30 @@ sys.path.insert(0, str(ROOT))
 from agents import trace
 from agents.runtime import run_agent_json
 
-BACKUP_DIR = ROOT / "backups"
-RERUN_DIR = ROOT / "reruns"
-CHANGES_LOG = ROOT / "changes.txt"
+RUNS_DIR = ROOT / "runs"        # per-run artifact folders
 MAX_CHARS = 12000
 
 
 def _now() -> str:
     return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+
+def _safe(run_id: str) -> str:
+    return run_id.replace("/", "_")
+
+
+def run_dir(run_id: str) -> Path:
+    """Return (and create) the artifact folder for a run."""
+    d = RUNS_DIR / _safe(run_id)
+    d.mkdir(parents=True, exist_ok=True)
+    return d
+
+
+def _append_log(run_id: str, text: str) -> None:
+    """Append a human-readable entry to that run's own changes.txt."""
+    log = run_dir(run_id) / "changes.txt"
+    with log.open("a") as f:
+        f.write(text + ("\n" if not text.endswith("\n") else ""))
 
 
 def propose_fix(error_report: dict, code_context: str, *, file: str, transcript: str | None = None) -> dict:
@@ -84,9 +102,10 @@ def apply_fix(fix: dict, run_id: str, error: dict | None = None) -> dict:
     if not applied_edits:
         raise RuntimeError("No proposed edits matched the current file; nothing applied.")
 
-    BACKUP_DIR.mkdir(exist_ok=True)
+    backups = run_dir(run_id) / "backups"
+    backups.mkdir(exist_ok=True)
     ts = datetime.now().strftime("%Y%m%d-%H%M%S")
-    backup = BACKUP_DIR / f"{file.replace('/', '_')}.{ts}.bak"
+    backup = backups / f"{_safe(file)}.{ts}.bak"
     shutil.copy2(p, backup)
     p.write_text(updated)
 
@@ -106,10 +125,11 @@ def apply_fix(fix: dict, run_id: str, error: dict | None = None) -> dict:
     )
 
     _append_log(
-        f"[{_now()}] APPLIED  change_id={row.get('id')}  run={run_id}  file={file}\n"
+        run_id,
+        f"[{_now()}] APPLIED  change_id={row.get('id')}  file={file}\n"
         f"  reason: {fix.get('rationale', '')}\n"
         f"  backup: {backup.relative_to(ROOT)}\n"
-        + "".join(f"  edit: {e['find']!r} -> {e['replace']!r}\n" for e in applied_edits)
+        + "".join(f"  edit: {e['find']!r} -> {e['replace']!r}\n" for e in applied_edits),
     )
     trace.log_event(run_id, "conversation_fix", "note", f"Applied fix to {file}: {fix.get('rationale', '')}")
     return {"change_id": row.get("id"), "backup": str(backup.relative_to(ROOT)), "edits": applied_edits, "file": file}
@@ -136,7 +156,9 @@ def spawn_rerun(run_id: str, fix_change_id: str | None = None, *, file: str | No
     )
     if fix_change_id:
         trace.patch("fix_attempts", fix_change_id, {"new_run_id": new_run_id})
-    _append_log(f"  re-run registered: {new_run_id} (parent {run_id})\n")
+    # log the lineage on both ends: parent points forward, child points back
+    _append_log(run_id, f"[{_now()}] DIRECTED TO NEXT -> {new_run_id} (corrected re-run)")
+    _append_log(new_run_id, f"[{_now()}] CORRECTED RE-RUN of {run_id} (fix change_id={fix_change_id})")
     trace.log_event(run_id, "conversation_fix", "note", f"Corrected re-run registered: {new_run_id}")
 
     autorun = os.getenv("CODE_ICU_AUTORUN", "1") != "0"
@@ -148,7 +170,7 @@ def spawn_rerun(run_id: str, fix_change_id: str | None = None, *, file: str | No
                             f"Corrected re-run launched: python {file} as {new_run_id}")
         except Exception as exc:
             print(f"  [agent 5] re-run launch failed: {exc}", flush=True)
-            _append_log(f"  re-run launch FAILED for {new_run_id}: {exc}\n")
+            _append_log(new_run_id, f"[{_now()}] LAUNCH FAILED: {exc}")
     return new_run_id
 
 
@@ -157,8 +179,7 @@ def _launch_rerun(file: str, new_run_id: str, run_ref: str | None) -> None:
     target = ROOT / file
     if not target.exists():
         raise FileNotFoundError(f"cannot launch re-run: {target} not found")
-    RERUN_DIR.mkdir(exist_ok=True)
-    log_path = RERUN_DIR / f"{new_run_id}.log"
+    log_path = run_dir(new_run_id) / "rerun.log"
 
     env = {**os.environ, "CODE_ICU_RUN_ID": new_run_id}
     if run_ref:
@@ -173,7 +194,7 @@ def _launch_rerun(file: str, new_run_id: str, run_ref: str | None) -> None:
         stderr=subprocess.STDOUT,
         start_new_session=True,  # survive after the monitor exits
     )
-    _append_log(f"  re-run LAUNCHED: {new_run_id} -> python {file} (log: reruns/{new_run_id}.log)\n")
+    _append_log(new_run_id, f"[{_now()}] LAUNCHED: python {file} (log: {log_path.relative_to(ROOT)})")
     print(f"  [agent 5] re-run LAUNCHED: python {file} as {new_run_id}", flush=True)
     print(f"  [agent 5] watch it live on the dashboard (run {new_run_id})", flush=True)
 
@@ -196,8 +217,9 @@ def rollback(change_id: str | None = None) -> dict:
 
     trace.patch("fix_attempts", row["id"], {"status": "rolled_back"})
     _append_log(
+        row.get("run_id", "unknown"),
         f"[{_now()}] ROLLBACK change_id={row['id']}  file={row['file']}  "
-        f"restored from {row['backup_path']}\n"
+        f"restored from {row['backup_path']}",
     )
     print(f"Rolled back {row['file']} from {row['backup_path']}")
     return row
@@ -226,11 +248,6 @@ def watch(interval: int = 4) -> None:
         except Exception as exc:
             print(f"  [fix-watch] poll error: {exc}", flush=True)
         time.sleep(interval)
-
-
-def _append_log(text: str) -> None:
-    with CHANGES_LOG.open("a") as f:
-        f.write(text + ("\n" if not text.endswith("\n") else ""))
 
 
 def _cli() -> None:

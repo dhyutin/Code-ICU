@@ -13,6 +13,8 @@ test_nebius.py
 # Agent runtime artifacts
 backups/
 reruns/
+runs/
+changes.txt
 code_context.json
 
 # Exported dataset (may contain transcripts) — keep the README

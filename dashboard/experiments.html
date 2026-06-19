@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>code_icu — experiments</title>
+  <style>
+    :root {
+      --bg: #0a0e14; --panel: #121823; --panel2: #0e141f; --border: #1f2937;
+      --text: #e6edf3; --muted: #7d8590; --accent: #58a6ff;
+      --red: #f85149; --green: #3fb950; --amber: #d29922; --violet: #a58eff;
+      --mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+      --sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; background: var(--bg); color: var(--text); font-family: var(--sans); padding: 1.5rem; }
+    a { color: var(--accent); text-decoration: none; }
+    header { display: flex; align-items: baseline; justify-content: space-between; gap: 1rem; margin-bottom: 1rem; flex-wrap: wrap; }
+    h1 { margin: 0; font-size: 1.4rem; letter-spacing: -0.02em; }
+    h1 .pulse { color: var(--red); }
+    .tagline { color: var(--muted); font-size: 0.85rem; margin: 0.2rem 0 0; }
+    .controls { display: flex; align-items: center; gap: 0.6rem; font-size: 0.85rem; }
+    .nav-link { color: var(--text); border: 1px solid var(--border); border-radius: 6px; padding: 0.3rem 0.7rem; font-size: 0.78rem; }
+    .nav-link:hover { border-color: var(--accent); color: var(--accent); }
+    .user-email { color: var(--muted); font-size: 0.8rem; font-family: var(--mono); }
+    #signout-btn { background: var(--panel); color: var(--text); border: 1px solid var(--border); border-radius: 6px; padding: 0.3rem 0.7rem; font: inherit; font-size: 0.78rem; cursor: pointer; }
+
+    .hint { color: var(--muted); font-size: 0.82rem; margin: 0 0 1.25rem; }
+    .chains { display: flex; flex-direction: column; gap: 1.25rem; }
+    .chain { background: var(--panel); border: 1px solid var(--border); border-radius: 12px; padding: 1rem 1.2rem; }
+
+    .node {
+      display: inline-flex; align-items: center; gap: 0.6rem;
+      border: 1px solid var(--border); background: var(--panel2);
+      border-radius: 9px; padding: 0.55rem 0.85rem; margin: 0.1rem 0;
+      max-width: 100%;
+    }
+    .node:hover { border-color: var(--accent); }
+    .node .dot { width: 9px; height: 9px; border-radius: 50%; background: var(--muted); flex: none; }
+    .node .dot.running { background: var(--accent); animation: blink 1.4s ease-in-out infinite; }
+    .node .dot.queued { background: var(--amber); }
+    .node .dot.done, .node .dot.complete, .node .dot.completed { background: var(--green); }
+    @keyframes blink { 50% { opacity: 0.3; } }
+    .node .nm { font-family: var(--mono); font-size: 0.84rem; color: var(--text); }
+    .node .st { font-size: 0.66rem; text-transform: uppercase; letter-spacing: 0.04em; color: var(--muted); border: 1px solid var(--border); border-radius: 999px; padding: 0.05rem 0.45rem; }
+    .node .mt { color: var(--muted); font-family: var(--mono); font-size: 0.72rem; }
+
+    .edge { display: flex; align-items: baseline; gap: 0.55rem; padding: 0.25rem 0 0.25rem 1.1rem; border-left: 2px dashed var(--border); margin-left: 0.6rem; }
+    .edge .arrow { color: var(--violet); font-weight: 700; font-size: 0.74rem; font-family: var(--mono); white-space: nowrap; }
+    .edge .fixinfo { color: var(--muted); font-size: 0.8rem; }
+    .edge .fixinfo code { font-family: var(--mono); font-size: 0.74rem; color: var(--text); background: var(--panel2); padding: 0.05rem 0.3rem; border-radius: 4px; }
+    .edge .fixinfo em { color: var(--red); font-style: normal; }
+
+    .root-label { color: var(--muted); font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 0.5rem; }
+    .empty { color: var(--muted); font-style: italic; }
+    body.gated { visibility: hidden; }
+  </style>
+</head>
+<body class="gated">
+  <header>
+    <div>
+      <h1>code_icu <span class="pulse">&#9829;</span> — experiments</h1>
+      <p class="tagline">run lineage — each fix forks a corrected re-run. Click any run to open its logs.</p>
+    </div>
+    <div class="controls">
+      <a href="/" class="nav-link">Monitor</a>
+      <a href="/architecture.html" class="nav-link">Architecture</a>
+      <span id="user-email" class="user-email"></span>
+      <button id="signout-btn" type="button">Sign out</button>
+    </div>
+  </header>
+
+  <p class="hint">Read top-to-bottom: a training run that was modified points down to the corrected re-run it was directed to, annotated with the fix that was applied.</p>
+
+  <div class="chains" id="chains">
+    <div class="empty">Loading…</div>
+  </div>
+
+  <script>
+    function esc(s) {
+      return String(s ?? "").replace(/[&<>"]/g, c => (
+        { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]
+      ));
+    }
+
+    async function fetchRuns() {
+      const { data, error } = await window.db
+        .from("runs").select().order("created_at", { ascending: true }).limit(500);
+      if (error) throw new Error(error.message);
+      return data || [];
+    }
+    async function fetchFixes() {
+      const { data, error } = await window.db
+        .from("fix_attempts").select().order("created_at", { ascending: true }).limit(200);
+      if (error) throw new Error(error.message);
+      return data || [];
+    }
+    async function fetchLogAgg() {
+      const { data, error } = await window.db
+        .from("run_logs").select("run_id, step, loss").order("step", { ascending: true }).limit(4000);
+      if (error) throw new Error(error.message);
+      const m = {};
+      for (const r of (data || [])) {
+        const e = (m[r.run_id] ||= { count: 0, last: null });
+        e.count++;
+        if (!e.last || r.step >= e.last.step) e.last = { step: r.step, loss: r.loss };
+      }
+      return m;
+    }
+
+    function nodeHtml(run, agg) {
+      const a = agg[run.name] || {};
+      const last = a.last ? `step ${a.last.step} · loss ${a.last.loss}` : "no logs yet";
+      const count = a.count ? ` · ${a.count} steps` : "";
+      const status = (run.status || "").toLowerCase();
+      return `<a class="node" href="/?run=${encodeURIComponent(run.name)}" title="open ${esc(run.name)}">
+        <span class="dot ${status}"></span>
+        <span class="nm">${esc(run.name)}</span>
+        ${run.status ? `<span class="st">${esc(run.status)}</span>` : ""}
+        <span class="mt">${esc(last)}${esc(count)}</span>
+      </a>`;
+    }
+
+    function edgeHtml(child, fixByNew) {
+      const f = fixByNew[child.name];
+      if (!f) return `<div class="edge"><span class="arrow">&#8595;</span></div>`;
+      const err = (f.patch && f.patch.error) || {};
+      return `<div class="edge">
+        <span class="arrow">&#8595; fix</span>
+        <span class="fixinfo">${esc(f.rationale || "code fix")}${f.file ? ` <code>${esc(f.file)}</code>` : ""}${err.type ? ` <em>(${esc(err.type)})</em>` : ""}</span>
+      </div>`;
+    }
+
+    function renderTree(run, depth, ctx) {
+      const pad = `margin-left:${depth * 1.4}rem`;
+      let html = `<div style="${pad}">${nodeHtml(run, ctx.agg)}</div>`;
+      const kids = (ctx.children[run.id] || [])
+        .sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
+      for (const k of kids) {
+        html += `<div style="${pad}">${edgeHtml(k, ctx.fixByNew)}</div>`;
+        html += renderTree(k, depth + 1, ctx);
+      }
+      return html;
+    }
+
+    async function load() {
+      const [runs, fixes, agg] = await Promise.all([fetchRuns(), fetchFixes(), fetchLogAgg()]);
+      const byId = {}; runs.forEach(r => (byId[r.id] = r));
+      const children = {};
+      runs.forEach(r => { if (r.parent_run_id) (children[r.parent_run_id] ||= []).push(r); });
+      const fixByNew = {};
+      fixes.forEach(f => { if (f.new_run_id) fixByNew[f.new_run_id] = f; });
+
+      const roots = runs
+        .filter(r => !r.parent_run_id || !byId[r.parent_run_id])
+        .sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+
+      const ctx = { agg, children, fixByNew };
+      const el = document.getElementById("chains");
+      if (!roots.length) {
+        el.innerHTML = `<div class="empty">No runs yet. Start a run and apply a fix to see lineage here.</div>`;
+        return;
+      }
+      el.innerHTML = roots.map(r => {
+        const hasChain = (children[r.id] || []).length > 0;
+        return `<div class="chain">
+          <div class="root-label">${hasChain ? "lineage" : "run"}</div>
+          ${renderTree(r, 0, ctx)}
+        </div>`;
+      }).join("");
+    }
+
+    async function tick() {
+      try { await load(); } catch (e) { console.error(e); }
+    }
+  </script>
+
+  <script type="module">
+    import { createClient } from "https://esm.sh/@insforge/sdk";
+    const insforge = createClient({
+      baseUrl: "https://f343zu6i.us-east.insforge.app",
+      anonKey: "anon_2b346540e21040864c2c54f2c1bb8f6a48f4c9b4d92fc5a8a3f2ef0b3f3255b7",
+    });
+    const { data, error } = await insforge.auth.getCurrentUser();
+    if (error || !data?.user) {
+      window.location.replace("/login.html");
+    } else {
+      document.getElementById("user-email").textContent = data.user.email || "";
+      document.getElementById("signout-btn").addEventListener("click", async () => {
+        await insforge.auth.signOut();
+        window.location.replace("/login.html");
+      });
+      window.db = insforge.database;
+      document.body.classList.remove("gated");
+      tick();
+      setInterval(tick, 5000);
+    }
+  </script>
+</body>
+</html>
