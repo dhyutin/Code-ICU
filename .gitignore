@@ -1,0 +1,27 @@
+Plan/
+.env
+venv/
+migrations/
+__pycache__/
+*.pyc
+*.pyo
+.DS_Store
+
+# Test / temp scripts
+test_nebius.py
+
+
+# InsForge & AI agent skills
+.insforge
+.agent
+.agents
+.augment
+.claude
+.cline
+.github/copilot*
+.kilocode
+.qoder
+.qwen
+.roo
+.trae
+.windsurf
