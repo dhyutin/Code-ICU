@@ -10,6 +10,10 @@ __pycache__/
 # Test / temp scripts
 test_nebius.py
 
+# Agent runtime artifacts
+backups/
+code_context.json
+
 
 # InsForge & AI agent skills
 .insforge

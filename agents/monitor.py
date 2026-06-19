@@ -27,6 +27,8 @@ sys.path.insert(0, str(ROOT))
 load_dotenv(ROOT / ".env")
 
 from anomaly_detector import check_anomaly
+from agents import fix as fix_mod
+from agents import trace
 from agents.runtime import decide_call, detect_error
 from agents.code_context import context_to_text, load_cached
 from agents.nebius_client import extract_decision
@@ -36,7 +38,9 @@ POLL_INTERVAL = 15
 CALL_POLL_INTERVAL = 10
 
 # Agent 1 output (run `python agents/code_context.py <script>` to generate it).
-CODE_CTX = context_to_text(load_cached() or {})
+_CTX = load_cached() or {}
+CODE_CTX = context_to_text(_CTX)
+TARGET_FILE = _CTX.get("_script_path", "demo/dummy_training.py")
 
 VAPI_API_KEY = os.getenv("VAPI_API_KEY", "").strip('"')
 VAPI_ASSISTANT_ID = os.getenv("VAPI_ASSISTANT_ID", "").strip('"')
@@ -98,10 +102,12 @@ def _wait_for_call(call_id: str) -> dict:
             return data
 
 
-def _log_decision(anomaly: dict, report: dict, call_data: dict | None, call_decision: dict) -> None:
+def _log_decision(anomaly: dict, report: dict, call_data: dict | None, call_decision: dict) -> str:
     transcript = (call_data or {}).get("transcript", "") or ""
     decision = extract_decision(transcript) if transcript else "not_called"
     print(f"  Decision: {decision}", flush=True)
+    if transcript:
+        trace.log_event(RUN_ID, "conversation_fix", "transcript", transcript, echo=False)
     payload = {
         "run_id": RUN_ID,
         "anomaly_type": report.get("error_type", anomaly["type"]),
@@ -117,6 +123,22 @@ def _log_decision(anomaly: dict, report: dict, call_data: dict | None, call_deci
     )
     resp.raise_for_status()
     print("  Logged to call_decisions.", flush=True)
+    return decision
+
+
+def _run_fix_loop(report: dict, transcript: str) -> None:
+    """Agent 5 self-healing: propose -> apply -> register corrected re-run."""
+    print(f"  [agent 5] proposing a fix for {TARGET_FILE}...", flush=True)
+    try:
+        fix = fix_mod.propose_fix(report, CODE_CTX, file=TARGET_FILE, transcript=transcript)
+        trace.log_event(RUN_ID, "conversation_fix", "output", json.dumps(fix), echo=True)
+        result = fix_mod.apply_fix(fix, RUN_ID)
+        print(f"  [agent 5] applied fix change_id={result['change_id']} (backup {result['backup']})", flush=True)
+        new_run = fix_mod.spawn_rerun(RUN_ID, result["change_id"])
+        print(f"  [agent 5] corrected re-run registered: {new_run}", flush=True)
+        print(f"  Rollback anytime: python agents/fix.py rollback {result['change_id']}", flush=True)
+    except Exception as exc:
+        print(f"  [agent 5] fix loop failed: {exc}", flush=True)
 
 
 def main() -> None:
@@ -137,17 +159,23 @@ def main() -> None:
             continue
         handled = True
 
+        trace.log_event(RUN_ID, "monitor", "note", result["brief"], echo=False)
+
         recent = result.get("recent_logs", [])
         report = detect_error(result, recent, code_context=CODE_CTX or None)
         print(f"  [agent 3] error report: {report}", flush=True)
+        trace.log_event(RUN_ID, "error_detection", "output", json.dumps(report), echo=False)
 
         call_decision = decide_call(report, prefs=USER_PREFS)
         print(f"  [agent 4] call decision: {call_decision}", flush=True)
+        trace.log_event(RUN_ID, "call_decision", "output", json.dumps(call_decision), echo=False)
 
         if call_decision.get("call"):
             call_id = _trigger_call(result, report)
             call_data = _wait_for_call(call_id)
-            _log_decision(result, report, call_data, call_decision)
+            decision = _log_decision(result, report, call_data, call_decision)
+            if decision == "fix":
+                _run_fix_loop(report, (call_data or {}).get("transcript", "") or "")
         else:
             print(f"  [agent 4] no call — {call_decision.get('reason', '')}", flush=True)
             _log_decision(result, report, None, call_decision)

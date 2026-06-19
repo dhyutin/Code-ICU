@@ -14,7 +14,11 @@ NEBIUS_BASE_URL = os.getenv("NEBIUS_BASE_URL", "https://api.studio.nebius.ai/v1"
 NEBIUS_MODEL = os.getenv("NEBIUS_MODEL", "meta-llama/Llama-3.3-70B-Instruct")
 
 DECISION_PROMPT = """You classify a researcher's decision from a phone call transcript about an ML training run.
-Reply with exactly one word: kill, pause, or continue.
+Reply with exactly one word:
+- kill      (stop the run)
+- pause     (hold the run)
+- continue  (let it keep running)
+- fix       (the researcher wants code_icu to apply a code fix and re-run)
 If unclear, reply: unknown
 
 Transcript:
@@ -51,13 +55,15 @@ def extract_decision(transcript: str) -> str:
             DECISION_PROMPT.format(transcript=transcript),
             temperature=0,
         ).lower()
-        for word in ("kill", "pause", "continue", "unknown"):
+        for word in ("kill", "pause", "continue", "fix", "unknown"):
             if word in raw.split():
                 return word
     except Exception:
         pass
 
     text = transcript.lower()
+    if re.search(r"\b(fix|patch|repair|correct|lower the lr|clip)\b", text):
+        return "fix"
     if re.search(r"\b(kill|stop|abort|terminate)\b", text):
         return "kill"
     if re.search(r"\b(pause|hold|wait)\b", text):
