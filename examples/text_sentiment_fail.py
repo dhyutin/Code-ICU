@@ -1,10 +1,7 @@
 #!/usr/bin/env python3
-"""Sentiment classifier on `rotten_tomatoes` (FAILING — learning rate too high).
+"""Sentiment classifier on the Hugging Face `rotten_tomatoes` dataset.
 
-Identical to text_sentiment.py except the learning rate is set far too high, so
-SGD overshoots and the loss/gradients explode within a few steps. This is the
-classic bug the Code Context + Error Detection agents catch, and the fix is to
-lower the learning rate.
+A 2-layer MLP over hashed bag-of-words. Streams metrics to code_icu.
 
     python examples/text_sentiment_fail.py
     python agents/monitor.py <RUN_ID>
@@ -17,12 +14,12 @@ from datasets import load_dataset
 
 from _common import grad_global_norm, hashing_vectorize, log_step, new_run_id, set_seed
 
-TAG = "text-sentiment-fail"
+TAG = "text-sentiment"
 DIM = 4096
 HIDDEN = 128
 BATCH = 32
 STEPS = 28
-LR = 30.0  # BUG: learning rate is orders of magnitude too high
+LR = 30.0
 DELAY = 1.1
 SUBSET = 3000
 

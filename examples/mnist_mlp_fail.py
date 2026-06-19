@@ -1,9 +1,7 @@
 #!/usr/bin/env python3
-"""Digit classifier on `mnist` (FAILING — pixels are never normalized).
+"""Digit classifier on the Hugging Face `mnist` dataset.
 
-Identical to mnist_mlp.py except the raw 0-255 pixel values are fed straight
-into the network. The huge input scale blows up activations and gradients, so
-the loss diverges to NaN. The fix is to normalize the pixels (divide by 255).
+A 2-layer MLP on flattened pixels. Streams metrics to code_icu.
 
     python examples/mnist_mlp_fail.py
     python agents/monitor.py <RUN_ID>
@@ -16,7 +14,7 @@ from datasets import load_dataset
 
 from _common import grad_global_norm, log_step, new_run_id, set_seed
 
-TAG = "mnist-mlp-fail"
+TAG = "mnist-mlp"
 HIDDEN = 256
 BATCH = 64
 STEPS = 28
@@ -36,7 +34,7 @@ def main() -> None:
     print(f"Loading mnist (subset {SUBSET})...", flush=True)
 
     ds = load_dataset("ylecun/mnist", split="train").shuffle(seed=0).select(range(SUBSET))
-    pixels = load_pixels(ds)  # BUG: raw 0-255 pixels, never normalized
+    pixels = load_pixels(ds)
     X = torch.from_numpy(pixels)
     y = torch.tensor(ds["label"], dtype=torch.long)
 
