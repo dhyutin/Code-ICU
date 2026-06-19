@@ -132,25 +132,46 @@
   </div>
 
   <script>
-    // Anon key is read-only by design and safe to expose in the browser.
     const CONFIG = {
-      url: "https://f343zu6i.us-east.insforge.app",
-      anonKey: "anon_2b346540e21040864c2c54f2c1bb8f6a48f4c9b4d92fc5a8a3f2ef0b3f3255b7",
       pollMs: 3000,
       gradLimit: 100,
       spikeRatio: 2.0,
     };
 
-    const headers = { Authorization: `Bearer ${CONFIG.anonKey}` };
-    const api = (table, qs) => `${CONFIG.url}/api/database/records/${table}?${qs}`;
-
     let selectedRun = null;
     let userPinnedRun = false;
 
-    async function getJSON(u) {
-      const r = await fetch(u, { headers });
-      if (!r.ok) throw new Error(`${r.status} ${await r.text()}`);
-      return r.json();
+    // Queries go through the authenticated SDK client (window.db), set by the
+    // auth gate below. RLS scopes every result to the signed-in user's runs.
+    async function fetchRunList() {
+      const { data, error } = await window.db
+        .from("run_logs")
+        .select("run_id, created_at")
+        .order("created_at", { ascending: false })
+        .limit(200);
+      if (error) throw new Error(error.message);
+      return data || [];
+    }
+
+    async function fetchLogs(runId) {
+      const { data, error } = await window.db
+        .from("run_logs")
+        .select()
+        .eq("run_id", runId)
+        .order("step", { ascending: true })
+        .limit(500);
+      if (error) throw new Error(error.message);
+      return data || [];
+    }
+
+    async function fetchDecisions() {
+      const { data, error } = await window.db
+        .from("call_decisions")
+        .select()
+        .order("created_at", { ascending: false })
+        .limit(20);
+      if (error) throw new Error(error.message);
+      return data || [];
     }
 
     function isAnomalyPoint(rows, i) {
@@ -250,7 +271,7 @@
 
     async function refreshRunList() {
       // Most recent 200 log rows → distinct run_ids, newest first
-      const recent = await getJSON(api("run_logs", "order=created_at.desc&limit=200"));
+      const recent = await fetchRunList();
       const seen = [];
       for (const row of recent) if (!seen.includes(row.run_id)) seen.push(row.run_id);
 
@@ -269,13 +290,11 @@
         await refreshRunList();
         if (!selectedRun) { status.textContent = "waiting for runs…"; return; }
 
-        const logs = await getJSON(
-          api("run_logs", `run_id=eq.${selectedRun}&order=step.asc&limit=500`)
-        );
+        const logs = await fetchLogs(selectedRun);
         renderChart(logs);
         renderStats(logs);
 
-        const decisions = await getJSON(api("call_decisions", "order=created_at.desc&limit=20"));
+        const decisions = await fetchDecisions();
         renderDecisions(decisions);
 
         dot.style.background = "#3fb950";
