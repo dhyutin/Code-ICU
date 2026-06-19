@@ -1,13 +1,18 @@
 #!/usr/bin/env python3
-"""Complete pre-build Vapi configuration: Nebius LLM, system prompt, phone check."""
+"""Complete pre-build Vapi configuration: Nebius LLM, system prompt, phone check.
+
+Run from anywhere:  python prebuild_checks/setup_prebuild.py
+"""
 
 import os
 import sys
+from pathlib import Path
 
 import httpx
 from dotenv import load_dotenv
 
-load_dotenv()
+ROOT = Path(__file__).parent.parent
+load_dotenv(ROOT / ".env")
 
 VAPI_BASE = "https://api.vapi.ai"
 SYSTEM_PROMPT = """You are code_icu, an ML experiment monitor.

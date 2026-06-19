@@ -1,5 +1,8 @@
 #!/usr/bin/env python3
-"""Verify all pre-build checklist items from Plan/README.md Section 2."""
+"""Verify all pre-build checklist items from Plan/README.md Section 2.
+
+Run from anywhere:  python prebuild_checks/verify_prebuild.py
+"""
 
 import os
 import sys
@@ -8,18 +11,19 @@ from pathlib import Path
 import httpx
 from dotenv import load_dotenv
 
-ROOT = Path(__file__).parent
-load_dotenv()
+ROOT = Path(__file__).parent.parent
+sys.path.insert(0, str(ROOT))
+load_dotenv(ROOT / ".env")
 
 REQUIRED_FILES = [
     "log_pusher.py",
-    "dummy_training.py",
     "anomaly_detector.py",
-    "monitor.py",
     "nebius_client.py",
     "requirements.txt",
     "migrations/20260619183440_init-schema.sql",
     ".env",
+    "demo/dummy_training.py",
+    "demo/monitor.py",
 ]
 
 REQUIRED_ENV = [
@@ -37,8 +41,7 @@ REQUIRED_ENV = [
 
 
 def check_files() -> list[str]:
-    missing = [f for f in REQUIRED_FILES if not (ROOT / f).exists()]
-    return missing
+    return [f for f in REQUIRED_FILES if not (ROOT / f).exists()]
 
 
 def check_env() -> list[str]:
@@ -116,8 +119,8 @@ def main() -> None:
     check_nebius()
 
     print("\n=== Pre-build PASS ===")
-    print("Run demo: python dummy_training.py  (terminal 1)")
-    print("          python monitor.py         (terminal 2, after ~40s)")
+    print("Run demo: python demo/dummy_training.py   (terminal 1, copy the printed RUN_ID)")
+    print("          python demo/monitor.py <RUN_ID> (terminal 2)")
 
 
 if __name__ == "__main__":
