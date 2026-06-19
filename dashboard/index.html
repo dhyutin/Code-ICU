@@ -77,9 +77,18 @@
     .badge.continue { background: rgba(63,185,80,0.15); color: var(--green); }
     .badge.unknown { background: rgba(125,133,144,0.15); color: var(--muted); }
     .empty { color: var(--muted); font-style: italic; padding: 0.75rem 0; }
+    .user-box { display: flex; align-items: center; gap: 0.55rem; }
+    .user-email { color: var(--muted); font-size: 0.8rem; font-family: var(--mono); }
+    #signout-btn {
+      background: var(--panel); color: var(--text);
+      border: 1px solid var(--border); border-radius: 6px;
+      padding: 0.3rem 0.7rem; font: inherit; font-size: 0.78rem; cursor: pointer;
+    }
+    #signout-btn:hover { border-color: var(--accent); color: var(--accent); }
+    body.gated { visibility: hidden; }
   </style>
 </head>
-<body>
+<body class="gated">
   <header>
     <div>
       <h1>code_icu <span class="pulse">&#9829;</span></h1>
@@ -89,6 +98,10 @@
       <label for="run-select">run</label>
       <select id="run-select"></select>
       <span><span class="dot live" id="live-dot"></span><span id="poll-status">live</span></span>
+      <span class="user-box">
+        <span id="user-email" class="user-email"></span>
+        <button id="signout-btn" type="button">Sign out</button>
+      </span>
     </div>
   </header>
 
@@ -280,8 +293,36 @@
       tick();
     });
 
-    tick();
-    setInterval(tick, CONFIG.pollMs);
+    // Started by the auth gate once a session is confirmed.
+    window.startDashboard = function () {
+      tick();
+      setInterval(tick, CONFIG.pollMs);
+    };
+  </script>
+
+  <script type="module">
+    import { createClient } from "https://esm.sh/@insforge/sdk";
+
+    const insforge = createClient({
+      baseUrl: "https://f343zu6i.us-east.insforge.app",
+      anonKey: "anon_2b346540e21040864c2c54f2c1bb8f6a48f4c9b4d92fc5a8a3f2ef0b3f3255b7",
+    });
+
+    // createClient auto-detects ?insforge_code=... on this page (the OAuth
+    // redirectTo target), exchanges it for a session, and cleans the URL.
+    const { data, error } = await insforge.auth.getCurrentUser();
+
+    if (error || !data?.user) {
+      window.location.replace("/login.html");
+    } else {
+      document.getElementById("user-email").textContent = data.user.email || "";
+      document.getElementById("signout-btn").addEventListener("click", async () => {
+        await insforge.auth.signOut();
+        window.location.replace("/login.html");
+      });
+      document.body.classList.remove("gated");
+      window.startDashboard();
+    }
   </script>
 </body>
 </html>
