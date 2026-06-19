@@ -1,3 +1,8 @@
 httpx
 python-dotenv
 openai
+
+# examples/ — real training tasks (Hugging Face data + PyTorch)
+torch
+datasets
+numpy

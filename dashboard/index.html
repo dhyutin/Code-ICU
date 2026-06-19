@@ -77,6 +77,26 @@
     .badge.continue { background: rgba(63,185,80,0.15); color: var(--green); }
     .badge.unknown { background: rgba(125,133,144,0.15); color: var(--muted); }
     .empty { color: var(--muted); font-style: italic; padding: 0.75rem 0; }
+    .hint { font-weight: 400; text-transform: none; letter-spacing: 0; color: var(--muted); font-size: 0.7rem; }
+    .timeline { display: flex; flex-direction: column; gap: 0.6rem; max-height: 360px; overflow-y: auto; }
+    .event { display: flex; gap: 0.6rem; align-items: flex-start; border-left: 2px solid var(--border); padding: 0.1rem 0 0.1rem 0.7rem; }
+    .event .meta { display: flex; flex-direction: column; gap: 0.15rem; min-width: 0; flex: 1; }
+    .event .content { font-family: var(--mono); font-size: 0.78rem; color: var(--text); white-space: pre-wrap; word-break: break-word; }
+    .event .time { color: var(--muted); font-size: 0.66rem; font-family: var(--mono); white-space: nowrap; }
+    .chip {
+      display: inline-block; padding: 0.1rem 0.5rem; border-radius: 999px;
+      font-size: 0.66rem; font-weight: 700; font-family: var(--sans);
+      text-transform: uppercase; letter-spacing: 0.04em; white-space: nowrap;
+    }
+    .chip.code_context { background: rgba(88,166,255,0.15); color: var(--accent); }
+    .chip.monitor { background: rgba(63,185,80,0.15); color: var(--green); }
+    .chip.error_detection { background: rgba(248,81,73,0.15); color: var(--red); }
+    .chip.call_decision { background: rgba(210,153,34,0.15); color: var(--amber); }
+    .chip.conversation_fix { background: rgba(165,142,255,0.18); color: #a58eff; }
+    .chip.kind { background: rgba(125,133,144,0.15); color: var(--muted); }
+    .badge.applied { background: rgba(63,185,80,0.15); color: var(--green); }
+    .badge.rolled_back { background: rgba(210,153,34,0.15); color: var(--amber); }
+    .badge.failed { background: rgba(248,81,73,0.15); color: var(--red); }
     .user-box { display: flex; align-items: center; gap: 0.55rem; }
     .user-email { color: var(--muted); font-size: 0.8rem; font-family: var(--mono); }
     #signout-btn {
@@ -129,6 +149,25 @@
         </tbody>
       </table>
     </section>
+
+    <section class="panel">
+      <h2>Agent activity <span class="hint" id="events-scope"></span></h2>
+      <div class="timeline" id="events-body">
+        <div class="empty">No agent activity yet.</div>
+      </div>
+    </section>
+
+    <section class="panel">
+      <h2>Code fixes &amp; rollbacks</h2>
+      <table>
+        <thead>
+          <tr><th>time</th><th>file</th><th>reason</th><th>status</th><th>re-run</th></tr>
+        </thead>
+        <tbody id="fixes-body">
+          <tr><td colspan="5" class="empty">No code fixes applied yet.</td></tr>
+        </tbody>
+      </table>
+    </section>
   </div>
 
   <script>
@@ -170,6 +209,22 @@
         .select()
         .order("created_at", { ascending: false })
         .limit(20);
+      if (error) throw new Error(error.message);
+      return data || [];
+    }
+
+    async function fetchEvents(runId) {
+      let q = window.db.from("agent_events").select();
+      if (runId) q = q.eq("run_id", runId);
+      const { data, error } = await q.order("created_at", { ascending: true }).limit(200);
+      if (error) throw new Error(error.message);
+      return data || [];
+    }
+
+    async function fetchFixes(runId) {
+      let q = window.db.from("fix_attempts").select();
+      if (runId) q = q.eq("run_id", runId);
+      const { data, error } = await q.order("created_at", { ascending: false }).limit(50);
       if (error) throw new Error(error.message);
       return data || [];
     }
@@ -269,6 +324,60 @@
       }).join("");
     }
 
+    function esc(s) {
+      return String(s ?? "").replace(/[&<>"]/g, c => (
+        { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]
+      ));
+    }
+
+    const AGENT_LABEL = {
+      code_context: "Code Context",
+      monitor: "Monitor",
+      error_detection: "Error Detection",
+      call_decision: "Call Decision",
+      conversation_fix: "Conversation & Fix",
+    };
+
+    function renderEvents(rows) {
+      const body = document.getElementById("events-body");
+      document.getElementById("events-scope").textContent =
+        selectedRun ? `· ${selectedRun}` : "";
+      if (!rows.length) {
+        body.innerHTML = `<div class="empty">No agent activity yet.</div>`;
+        return;
+      }
+      body.innerHTML = rows.map(e => {
+        const key = (e.agent_key || "kind");
+        const label = AGENT_LABEL[key] || key;
+        return `<div class="event">
+          <span class="chip ${key}">${esc(label)}</span>
+          <div class="meta">
+            <span class="chip kind">${esc(e.kind)}</span>
+            <span class="content">${esc(e.content)}</span>
+          </div>
+          <span class="time">${timeAgo(e.created_at)}</span>
+        </div>`;
+      }).join("");
+    }
+
+    function renderFixes(rows) {
+      const body = document.getElementById("fixes-body");
+      if (!rows.length) {
+        body.innerHTML = `<tr><td colspan="5" class="empty">No code fixes applied yet.</td></tr>`;
+        return;
+      }
+      body.innerHTML = rows.map(r => {
+        const status = (r.status || "applied").toLowerCase();
+        return `<tr>
+          <td>${timeAgo(r.created_at)}</td>
+          <td>${esc(r.file)}</td>
+          <td>${esc(r.rationale || "—")}</td>
+          <td><span class="badge ${status}">${esc(status)}</span></td>
+          <td>${esc(r.new_run_id || "—")}</td>
+        </tr>`;
+      }).join("");
+    }
+
     async function refreshRunList() {
       // Most recent 200 log rows → distinct run_ids, newest first
       const recent = await fetchRunList();
@@ -296,6 +405,12 @@
 
         const decisions = await fetchDecisions();
         renderDecisions(decisions);
+
+        const events = await fetchEvents(selectedRun);
+        renderEvents(events);
+
+        const fixes = await fetchFixes(selectedRun);
+        renderFixes(fixes);
 
         dot.style.background = "#3fb950";
         status.textContent = "live";

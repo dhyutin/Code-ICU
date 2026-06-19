@@ -1,5 +1,6 @@
 """Fetch the last N steps from InsForge and detect training anomalies."""
 
+import math
 import os
 import statistics
 import httpx
@@ -36,30 +37,36 @@ def check_anomaly(run_id: str) -> dict:
         return {"detected": False}
 
     losses = [r["loss"] for r in rows]
-    grad_norms = [r["grad_norm"] for r in rows if r.get("grad_norm") is not None]
     latest = rows[-1]
 
-    # Grad explosion
-    if grad_norms and grad_norms[-1] > GRAD_LIMIT:
-        return {
-            "detected": True,
-            "type": "grad_explosion",
-            "step": latest["step"],
-            "brief": f"Gradient norm hit {grad_norms[-1]:.1f} (limit {GRAD_LIMIT}) at step {latest['step']}",
-            "recent_logs": rows,
-        }
-
-    # Loss spike — latest loss vs mean of everything before it
-    if len(losses) >= 2:
-        baseline = statistics.mean(losses[:-1])
-        if baseline > 0 and losses[-1] > baseline * SPIKE_RATIO:
+    # Grad explosion — any step in the recent window over the limit (also
+    # catches non-finite values, which scripts log as a large sentinel).
+    grad_rows = [r for r in rows if r.get("grad_norm") is not None]
+    if grad_rows:
+        worst = max(grad_rows, key=lambda r: r["grad_norm"])
+        if not math.isfinite(worst["grad_norm"]) or worst["grad_norm"] > GRAD_LIMIT:
             return {
                 "detected": True,
-                "type": "loss_spike",
-                "step": latest["step"],
-                "brief": f"Loss jumped to {losses[-1]:.4f} (baseline {baseline:.4f}) at step {latest['step']}",
+                "type": "grad_explosion",
+                "step": worst["step"],
+                "brief": f"Gradient norm hit {worst['grad_norm']:.1f} (limit {GRAD_LIMIT}) at step {worst['step']}",
                 "recent_logs": rows,
             }
+
+    # Loss spike — a sudden jump UP between consecutive steps (a healthy run
+    # only trends down, so this won't fire on strong convergence).
+    if len(losses) >= 2:
+        median = statistics.median(losses)
+        for i in range(1, len(losses)):
+            prev, cur = losses[i - 1], losses[i]
+            if prev > 0 and cur > prev * SPIKE_RATIO and cur > median:
+                return {
+                    "detected": True,
+                    "type": "loss_spike",
+                    "step": rows[i]["step"],
+                    "brief": f"Loss jumped to {cur:.4f} (from {prev:.4f}) at step {rows[i]['step']}",
+                    "recent_logs": rows,
+                }
 
     # Plateau — no improvement over last PLATEAU_STEPS
     if len(losses) >= PLATEAU_STEPS:
