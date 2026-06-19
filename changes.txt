@@ -1,0 +1,6 @@
+[2026-06-19T21:39:50Z] APPLIED  change_id=80805a6e-bd9f-44f4-a2b2-2d6042a0bae8  run=text-fail-143608  file=examples/text_sentiment_fail.py
+  reason: The large learning rate of 30.0 is likely causing the loss spike, so it is being reduced to 0.03 to prevent overly aggressive model updates.
+  backup: backups/examples_text_sentiment_fail.py.20260619-143950.bak
+  edit: 'LR = 30.0' -> 'LR = 0.03'
+  re-run registered: text-fail-143608-fix-143951 (parent text-fail-143608)
+  re-run LAUNCHED: text-fail-143608-fix-143951 -> python examples/text_sentiment_fail.py (log: reruns/text-fail-143608-fix-143951.log)
