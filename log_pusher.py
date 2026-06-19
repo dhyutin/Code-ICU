@@ -20,6 +20,11 @@ def push_log(run_id: str, step: int, loss: float, grad_norm: float = None, lr: f
         payload["grad_norm"] = grad_norm
     if lr is not None:
         payload["lr"] = lr
+    # An auto-launched corrected re-run sets CODE_ICU_RUN_REF so its logs link to
+    # the owned `runs` row and show up live on the (RLS-scoped) dashboard.
+    run_ref = os.getenv("CODE_ICU_RUN_REF")
+    if run_ref:
+        payload["run_ref"] = run_ref
 
     resp = httpx.post(f"{_URL}/api/database/records/run_logs", json=[payload], headers=_HEADERS, timeout=10)
     resp.raise_for_status()

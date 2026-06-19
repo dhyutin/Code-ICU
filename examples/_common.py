@@ -10,6 +10,7 @@ exactly like a real run. Each script prints `RUN_ID=...`; pass it to the monitor
 from __future__ import annotations
 
 import math
+import os
 import random
 import sys
 import time
@@ -26,7 +27,9 @@ from log_pusher import push_log
 
 
 def new_run_id(tag: str) -> str:
-    return f"{tag}-{datetime.now().strftime('%H%M%S')}"
+    # A code_icu-launched corrected re-run pins the id so its logs match the
+    # registered run; otherwise generate a fresh timestamped id.
+    return os.getenv("CODE_ICU_RUN_ID") or f"{tag}-{datetime.now().strftime('%H%M%S')}"
 
 
 def set_seed(seed: int = 0) -> None:

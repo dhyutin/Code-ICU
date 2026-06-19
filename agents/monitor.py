@@ -138,8 +138,8 @@ def _run_fix_loop(report: dict, transcript: str, anomaly: dict) -> None:
         trace.log_event(RUN_ID, "conversation_fix", "output", json.dumps(fix), echo=True)
         result = fix_mod.apply_fix(fix, RUN_ID, error=error)
         print(f"  [agent 5] applied fix change_id={result['change_id']} (backup {result['backup']})", flush=True)
-        new_run = fix_mod.spawn_rerun(RUN_ID, result["change_id"])
-        print(f"  [agent 5] corrected re-run registered: {new_run}", flush=True)
+        new_run = fix_mod.spawn_rerun(RUN_ID, result["change_id"], file=TARGET_FILE)
+        print(f"  [agent 5] corrected re-run: {new_run}", flush=True)
         print(f"  Rollback anytime: python agents/fix.py rollback {result['change_id']}", flush=True)
     except Exception as exc:
         print(f"  [agent 5] fix loop failed: {exc}", flush=True)

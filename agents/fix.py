@@ -19,7 +19,9 @@ CLI:
 from __future__ import annotations
 
 import json
+import os
 import shutil
+import subprocess
 import sys
 import time
 from datetime import datetime, timezone
@@ -32,6 +34,7 @@ from agents import trace
 from agents.runtime import run_agent_json
 
 BACKUP_DIR = ROOT / "backups"
+RERUN_DIR = ROOT / "reruns"
 CHANGES_LOG = ROOT / "changes.txt"
 MAX_CHARS = 12000
 
@@ -112,11 +115,17 @@ def apply_fix(fix: dict, run_id: str, error: dict | None = None) -> dict:
     return {"change_id": row.get("id"), "backup": str(backup.relative_to(ROOT)), "edits": applied_edits, "file": file}
 
 
-def spawn_rerun(run_id: str, fix_change_id: str | None = None) -> str:
-    """Register a corrected re-run linked to the original via parent_run_id."""
+def spawn_rerun(run_id: str, fix_change_id: str | None = None, *, file: str | None = None,
+                launch: bool = True) -> str:
+    """Register a corrected re-run (linked via parent_run_id) and actually launch it.
+
+    The corrected `file` is run as a detached subprocess with CODE_ICU_RUN_ID /
+    CODE_ICU_RUN_REF set, so it trains under the new run id and streams live to the
+    dashboard. Set env CODE_ICU_AUTORUN=0 (or launch=False) to only register.
+    """
     parent = trace.resolve_run(run_id)
     new_run_id = f"{run_id}-fix-{datetime.now().strftime('%H%M%S')}"
-    trace._insert(
+    new_run = trace._insert(
         "runs",
         {
             "user_id": parent["user_id"],
@@ -129,7 +138,44 @@ def spawn_rerun(run_id: str, fix_change_id: str | None = None) -> str:
         trace.patch("fix_attempts", fix_change_id, {"new_run_id": new_run_id})
     _append_log(f"  re-run registered: {new_run_id} (parent {run_id})\n")
     trace.log_event(run_id, "conversation_fix", "note", f"Corrected re-run registered: {new_run_id}")
+
+    autorun = os.getenv("CODE_ICU_AUTORUN", "1") != "0"
+    if launch and file and autorun:
+        try:
+            _launch_rerun(file, new_run_id, new_run.get("id"))
+            trace.patch("runs", new_run["id"], {"status": "running"})
+            trace.log_event(run_id, "conversation_fix", "note",
+                            f"Corrected re-run launched: python {file} as {new_run_id}")
+        except Exception as exc:
+            print(f"  [agent 5] re-run launch failed: {exc}", flush=True)
+            _append_log(f"  re-run launch FAILED for {new_run_id}: {exc}\n")
     return new_run_id
+
+
+def _launch_rerun(file: str, new_run_id: str, run_ref: str | None) -> None:
+    """Run the corrected training file as a detached process under the new run id."""
+    target = ROOT / file
+    if not target.exists():
+        raise FileNotFoundError(f"cannot launch re-run: {target} not found")
+    RERUN_DIR.mkdir(exist_ok=True)
+    log_path = RERUN_DIR / f"{new_run_id}.log"
+
+    env = {**os.environ, "CODE_ICU_RUN_ID": new_run_id}
+    if run_ref:
+        env["CODE_ICU_RUN_REF"] = str(run_ref)
+
+    log_file = open(log_path, "w")
+    subprocess.Popen(
+        [sys.executable, str(target)],
+        cwd=str(ROOT),
+        env=env,
+        stdout=log_file,
+        stderr=subprocess.STDOUT,
+        start_new_session=True,  # survive after the monitor exits
+    )
+    _append_log(f"  re-run LAUNCHED: {new_run_id} -> python {file} (log: reruns/{new_run_id}.log)\n")
+    print(f"  [agent 5] re-run LAUNCHED: python {file} as {new_run_id}", flush=True)
+    print(f"  [agent 5] watch it live on the dashboard (run {new_run_id})", flush=True)
 
 
 def rollback(change_id: str | None = None) -> dict:

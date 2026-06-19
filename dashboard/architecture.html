@@ -8,6 +8,7 @@
     :root {
       --bg: #0a0e14;
       --panel: #121823;
+      --panel2: #0e141f;
       --border: #1f2937;
       --text: #e6edf3;
       --muted: #7d8590;
@@ -22,7 +23,9 @@
       --sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
     }
     * { box-sizing: border-box; }
-    body { margin: 0; background: var(--bg); color: var(--text); font-family: var(--sans); padding: 1.5rem; }
+    body { margin: 0; background:
+      radial-gradient(1200px 600px at 70% -10%, rgba(88,166,255,0.06), transparent 60%),
+      var(--bg); color: var(--text); font-family: var(--sans); padding: 1.5rem; }
     a { color: var(--accent); text-decoration: none; }
     a:hover { text-decoration: underline; }
     header { display: flex; align-items: baseline; justify-content: space-between; gap: 1rem; margin-bottom: 1.25rem; flex-wrap: wrap; }
@@ -30,61 +33,27 @@
     h1 .pulse { color: #f85149; }
     .tagline { color: var(--muted); font-size: 0.85rem; margin: 0.2rem 0 0; }
     .nav { font-size: 0.85rem; }
-    .wrap { max-width: 1080px; margin: 0 auto; }
+    .wrap { max-width: 1180px; margin: 0 auto; }
 
-    /* legend */
-    .legend { display: flex; gap: 0.6rem; flex-wrap: wrap; margin-bottom: 1.5rem; }
-    .pill {
-      display: inline-flex; align-items: center; gap: 0.45rem;
-      border: 1px solid var(--border); background: var(--panel);
-      border-radius: 999px; padding: 0.32rem 0.7rem; font-size: 0.78rem;
-    }
+    .legend { display: flex; gap: 0.6rem; flex-wrap: wrap; margin-bottom: 1.25rem; }
+    .pill { display: inline-flex; align-items: center; gap: 0.45rem; border: 1px solid var(--border); background: var(--panel); border-radius: 999px; padding: 0.32rem 0.7rem; font-size: 0.78rem; }
     .pill .swatch { width: 10px; height: 10px; border-radius: 3px; }
     .pill .role { color: var(--muted); }
 
-    /* flow */
-    .flow { display: flex; flex-direction: column; align-items: center; gap: 0; }
-    .node {
-      width: 100%; max-width: 720px; border: 1px solid var(--border);
-      border-left: 4px solid var(--core); background: var(--panel);
-      border-radius: 10px; padding: 0.9rem 1.1rem;
-    }
-    .node.hf { border-left-color: var(--hf); }
-    .node.torch { border-left-color: var(--torch); }
-    .node.insforge { border-left-color: var(--insforge); }
-    .node.nebius { border-left-color: var(--nebius); }
-    .node.vapi { border-left-color: var(--vapi); }
-    .node .title { display: flex; align-items: center; gap: 0.6rem; flex-wrap: wrap; }
-    .node .title .name { font-size: 0.98rem; font-weight: 600; }
-    .node .title .file { font-family: var(--mono); font-size: 0.72rem; color: var(--muted); }
-    .node .desc { color: var(--muted); font-size: 0.83rem; margin-top: 0.4rem; line-height: 1.5; }
-    .tags { display: flex; gap: 0.4rem; flex-wrap: wrap; margin-left: auto; }
-    .tag {
-      font-size: 0.66rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em;
-      padding: 0.12rem 0.5rem; border-radius: 999px;
-    }
-    .tag.hf { background: rgba(255,176,32,0.16); color: var(--hf); }
-    .tag.torch { background: rgba(238,76,44,0.16); color: var(--torch); }
-    .tag.insforge { background: rgba(139,124,255,0.18); color: var(--insforge); }
-    .tag.nebius { background: rgba(45,212,191,0.16); color: var(--nebius); }
-    .tag.vapi { background: rgba(208,107,255,0.16); color: var(--vapi); }
-    .tag.core { background: rgba(88,166,255,0.16); color: var(--core); }
+    .diagram { border: 1px solid var(--border); border-radius: 14px; background:
+      linear-gradient(180deg, rgba(255,255,255,0.015), transparent), var(--panel);
+      padding: 0.5rem; }
+    .diagram svg { width: 100%; height: auto; display: block; }
 
-    .arrow { display: flex; flex-direction: column; align-items: center; color: var(--muted); padding: 0.15rem 0; }
-    .arrow .line { width: 2px; height: 16px; background: var(--border); }
-    .arrow .label { font-family: var(--mono); font-size: 0.68rem; color: var(--muted); padding: 0.15rem 0; }
-    .arrow .chev { font-size: 0.8rem; line-height: 1; }
+    /* SVG text styling */
+    .b-title { font-family: var(--sans); font-weight: 700; font-size: 16px; }
+    .b-sub { font-family: var(--sans); font-size: 12px; fill: var(--muted); }
+    .b-mono { font-family: var(--mono); font-size: 11px; fill: var(--muted); }
+    .agentline { font-family: var(--mono); font-size: 11.5px; }
+    .edge { stroke: #44506a; stroke-width: 1.6; fill: none; }
+    .edge-label { font-family: var(--mono); font-size: 11px; fill: #9aa4b2; }
+    .edge-label-bg { fill: var(--panel); }
 
-    .subnodes { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 0.5rem; margin-top: 0.7rem; }
-    .sub { border: 1px solid var(--border); border-radius: 7px; padding: 0.5rem 0.6rem; background: #0e141f; }
-    .sub .n { font-size: 0.8rem; font-weight: 600; }
-    .sub .d { color: var(--muted); font-size: 0.72rem; margin-top: 0.15rem; line-height: 1.4; }
-    .sub .idx { color: var(--nebius); font-family: var(--mono); font-size: 0.7rem; }
-
-    /* dashboard side-card */
-    .sidebar-note { width: 100%; max-width: 720px; margin-top: 1rem; }
-
-    /* platform usage cards */
     h2.section { font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); margin: 2.25rem 0 1rem; }
     .usage { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 1rem; }
     .ucard { border: 1px solid var(--border); border-top: 3px solid var(--core); background: var(--panel); border-radius: 10px; padding: 1rem 1.1rem; }
@@ -96,7 +65,7 @@
     .ucard h3 { margin: 0 0 0.5rem; font-size: 0.98rem; }
     .ucard ul { margin: 0; padding-left: 1.05rem; }
     .ucard li { color: var(--muted); font-size: 0.82rem; line-height: 1.6; }
-    .ucard li code { font-family: var(--mono); font-size: 0.76rem; color: var(--text); background: #0e141f; padding: 0.05rem 0.3rem; border-radius: 4px; }
+    .ucard li code { font-family: var(--mono); font-size: 0.76rem; color: var(--text); background: var(--panel2); padding: 0.05rem 0.3rem; border-radius: 4px; }
     footer { color: var(--muted); font-size: 0.75rem; text-align: center; margin-top: 2.5rem; }
   </style>
 </head>
@@ -119,108 +88,145 @@
       <span class="pill"><span class="swatch" style="background:var(--core)"></span>code_icu <span class="role">· orchestration</span></span>
     </div>
 
-    <div class="flow">
-      <div class="node torch">
-        <div class="title">
-          <span class="name">Training job</span>
-          <span class="file">examples/*.py · demo/dummy_training.py</span>
-          <span class="tags"><span class="tag torch">PyTorch</span><span class="tag hf">Hugging Face</span></span>
-        </div>
-        <div class="desc">Real MLPs train on Hugging Face datasets (<code style="font-family:var(--mono)">rotten_tomatoes</code>, <code style="font-family:var(--mono)">mnist</code>). Each step emits real loss, gradient norm, and learning rate.</div>
-      </div>
+    <div class="diagram">
+      <svg viewBox="0 0 1180 820" preserveAspectRatio="xMidYMid meet" role="img" aria-label="code_icu architecture diagram">
+        <defs>
+          <marker id="arrow" markerWidth="10" markerHeight="10" refX="8" refY="3.2" orient="auto-start-reverse">
+            <path d="M0,0 L8,3.2 L0,6.4 Z" fill="#6b7689" />
+          </marker>
+          <filter id="soft" x="-20%" y="-20%" width="140%" height="140%">
+            <feDropShadow dx="0" dy="3" stdDeviation="6" flood-color="#000" flood-opacity="0.35" />
+          </filter>
+        </defs>
 
-      <div class="arrow"><span class="line"></span><span class="label">push_log(loss, grad_norm, lr)</span><span class="chev">&#9660;</span></div>
+        <!-- ================= EDGES (drawn first, under the boxes) ================= -->
+        <!-- Training -> InsForge : metrics -->
+        <path class="edge" d="M165,430 L165,624" marker-end="url(#arrow)" />
+        <!-- InsForge -> Orchestrator : poll -->
+        <path class="edge" d="M500,624 L500,432" marker-end="url(#arrow)" />
+        <!-- Orchestrator -> InsForge : write -->
+        <path class="edge" d="M660,432 L660,624" marker-end="url(#arrow)" />
+        <!-- Orchestrator <-> Nebius : prompts/results -->
+        <path class="edge" d="M580,250 L580,196" marker-start="url(#arrow)" marker-end="url(#arrow)" />
+        <!-- Orchestrator <-> Vapi : call/transcript -->
+        <path class="edge" d="M752,300 L876,300" marker-start="url(#arrow)" marker-end="url(#arrow)" />
+        <!-- Vapi <-> Human : voice -->
+        <path class="edge" d="M1000,366 L1000,408" marker-start="url(#arrow)" marker-end="url(#arrow)" />
+        <!-- Dashboard <-> InsForge : read/restore (far-right routing) -->
+        <path class="edge" d="M1124,118 L1158,118 L1158,700 L974,700" marker-start="url(#arrow)" marker-end="url(#arrow)" />
 
-      <div class="node insforge">
-        <div class="title">
-          <span class="name">Metrics store — run_logs</span>
-          <span class="file">log_pusher.py</span>
-          <span class="tags"><span class="tag insforge">InsForge Postgres</span></span>
-        </div>
-        <div class="desc">Every step is written to the <code style="font-family:var(--mono)">run_logs</code> table, owner-scoped by RLS through the <code style="font-family:var(--mono)">runs</code> row.</div>
-      </div>
+        <!-- edge labels -->
+        <g>
+          <rect class="edge-label-bg" x="178" y="520" width="118" height="16" rx="3"/>
+          <text class="edge-label" x="182" y="532">push_log metrics</text>
 
-      <div class="arrow"><span class="line"></span><span class="label">anomaly_detector polls recent window</span><span class="chev">&#9660;</span></div>
+          <rect class="edge-label-bg" x="372" y="512" width="124" height="16" rx="3"/>
+          <text class="edge-label" x="376" y="524" text-anchor="start">poll recent steps</text>
 
-      <div class="node core">
-        <div class="title">
-          <span class="name">Heuristic flag</span>
-          <span class="file">anomaly_detector.py · agents/monitor.py</span>
-          <span class="tags"><span class="tag core">code_icu</span></span>
-        </div>
-        <div class="desc">Cheap checks catch a grad explosion (norm &gt; limit) or a sudden loss jump in the recent window, then hand off to the agents.</div>
-      </div>
+          <rect class="edge-label-bg" x="664" y="512" width="170" height="16" rx="3"/>
+          <text class="edge-label" x="668" y="524">write decisions / events / fixes</text>
 
-      <div class="arrow"><span class="line"></span><span class="label">structured context + report</span><span class="chev">&#9660;</span></div>
+          <rect class="edge-label-bg" x="592" y="214" width="150" height="16" rx="3"/>
+          <text class="edge-label" x="596" y="226">LLM prompts ⇄ results</text>
 
-      <div class="node nebius">
-        <div class="title">
-          <span class="name">Agent pipeline</span>
-          <span class="file">agents/runtime.py (registry-driven) · agents/nebius_client.py</span>
-          <span class="tags"><span class="tag nebius">Nebius LLMs</span><span class="tag insforge">agents table</span></span>
-        </div>
-        <div class="desc">Five specialised agents, each defined by a row in the InsForge <code style="font-family:var(--mono)">agents</code> table and run through the Nebius gateway.</div>
-        <div class="subnodes">
-          <div class="sub"><div class="n"><span class="idx">1</span> Code Context</div><div class="d">Reads the training script → summary, hyperparams, failure points</div></div>
-          <div class="sub"><div class="n"><span class="idx">2</span> Monitor</div><div class="d">Interprets the live metric stream</div></div>
-          <div class="sub"><div class="n"><span class="idx">3</span> Error Detection</div><div class="d">Classifies the failure + severity</div></div>
-          <div class="sub"><div class="n"><span class="idx">4</span> Call Decision</div><div class="d">Decides whether to phone the human</div></div>
-          <div class="sub"><div class="n"><span class="idx">5</span> Conversation &amp; Fix</div><div class="d">Talks on the call, proposes the patch</div></div>
-        </div>
-      </div>
+          <rect class="edge-label-bg" x="772" y="282" width="118" height="16" rx="3"/>
+          <text class="edge-label" x="776" y="294">call ⇄ transcript</text>
 
-      <div class="arrow"><span class="line"></span><span class="label">agent 4 says "call"</span><span class="chev">&#9660;</span></div>
+          <rect class="edge-label-bg" x="1010" y="380" width="44" height="16" rx="3"/>
+          <text class="edge-label" x="1014" y="392">voice</text>
 
-      <div class="node vapi">
-        <div class="title">
-          <span class="name">Outbound voice call</span>
-          <span class="file">agents/monitor.py · agents/sync_vapi.py</span>
-          <span class="tags"><span class="tag vapi">Vapi</span><span class="tag nebius">agent 5 prompt</span></span>
-        </div>
-        <div class="desc">Vapi places the call with the anomaly brief, recent logs, and code context injected as <code style="font-family:var(--mono)">variableValues</code>. The researcher talks to agent 5 live.</div>
-      </div>
+          <text class="edge-label" x="1166" y="410" text-anchor="middle" transform="rotate(-90 1166 410)">read · restore</text>
+        </g>
 
-      <div class="arrow"><span class="line"></span><span class="label">transcript</span><span class="chev">&#9660;</span></div>
+        <!-- ================= BOXES ================= -->
+        <!-- NEBIUS : agent brain -->
+        <g filter="url(#soft)">
+          <rect x="410" y="46" width="340" height="150" rx="12" fill="#101725" stroke="#2dd4bf" stroke-width="1.5"/>
+          <rect x="410" y="46" width="6" height="150" rx="3" fill="#2dd4bf"/>
+        </g>
+        <text class="b-title" x="432" y="76" fill="#2dd4bf">Nebius — agent brain</text>
+        <text class="b-sub" x="432" y="96">OpenAI-compatible LLM gateway · registry-driven</text>
+        <text class="agentline" x="432" y="124" fill="#cdeee8"><tspan fill="#2dd4bf">1</tspan> Code Context   <tspan fill="#2dd4bf">2</tspan> Monitor   <tspan fill="#2dd4bf">3</tspan> Error Detection</text>
+        <text class="agentline" x="432" y="146" fill="#cdeee8"><tspan fill="#2dd4bf">4</tspan> Call Decision   <tspan fill="#2dd4bf">5</tspan> Conversation &amp; Fix</text>
+        <text class="b-mono" x="432" y="174">agents/runtime.py · agents/nebius_client.py</text>
 
-      <div class="node nebius">
-        <div class="title">
-          <span class="name">Decision extraction</span>
-          <span class="file">agents/nebius_client.py · extract_decision()</span>
-          <span class="tags"><span class="tag nebius">Nebius</span></span>
-        </div>
-        <div class="desc">The transcript is distilled to one of <code style="font-family:var(--mono)">kill · pause · continue · fix</code>.</div>
-      </div>
+        <!-- DASHBOARD -->
+        <g filter="url(#soft)">
+          <rect x="884" y="46" width="240" height="150" rx="12" fill="#101725" stroke="#58a6ff" stroke-width="1.5"/>
+          <rect x="884" y="46" width="6" height="150" rx="3" fill="#58a6ff"/>
+        </g>
+        <text class="b-title" x="906" y="76" fill="#58a6ff">Dashboard</text>
+        <text class="b-sub" x="906" y="96">browser · this app</text>
+        <text class="b-mono" x="906" y="124">InsForge SDK · Chart.js</text>
+        <text class="b-mono" x="906" y="144">Google login · RLS reads</text>
+        <text class="b-mono" x="906" y="164">live logs · fixes · Restore</text>
 
-      <div class="arrow"><span class="line"></span><span class="label">persist decision + full agent/human trail</span><span class="chev">&#9660;</span></div>
+        <!-- TRAINING -->
+        <g filter="url(#soft)">
+          <rect x="40" y="250" width="250" height="180" rx="12" fill="#101725" stroke="#ee4c2c" stroke-width="1.5"/>
+          <rect x="40" y="250" width="6" height="180" rx="3" fill="#ee4c2c"/>
+        </g>
+        <text class="b-title" x="62" y="282" fill="#ee4c2c">Training job</text>
+        <text class="b-sub" x="62" y="302">examples/*.py · demo/</text>
+        <!-- inner HF chip -->
+        <rect x="62" y="318" width="206" height="40" rx="8" fill="#16101a" stroke="#ffb020" stroke-width="1.2"/>
+        <text class="b-sub" x="76" y="335" fill="#ffb020" style="font-weight:700">Hugging Face</text>
+        <text class="b-mono" x="76" y="351">load_dataset(rotten_tomatoes, mnist)</text>
+        <!-- inner PyTorch chip -->
+        <rect x="62" y="366" width="206" height="46" rx="8" fill="#1a0f0d" stroke="#ee4c2c" stroke-width="1.2"/>
+        <text class="b-sub" x="76" y="384" fill="#ee4c2c" style="font-weight:700">PyTorch MLP</text>
+        <text class="b-mono" x="76" y="400">real loss · grad_norm · lr per step</text>
 
-      <div class="node insforge">
-        <div class="title">
-          <span class="name">call_decisions + agent_events</span>
-          <span class="file">agents/trace.py</span>
-          <span class="tags"><span class="tag insforge">InsForge Postgres</span></span>
-        </div>
-        <div class="desc">The decision and every agent input/output + the human transcript are logged for traceability and a future fine-tuning dataset.</div>
-      </div>
+        <!-- ORCHESTRATOR -->
+        <g filter="url(#soft)">
+          <rect x="410" y="250" width="342" height="180" rx="12" fill="#101725" stroke="#58a6ff" stroke-width="1.5"/>
+          <rect x="410" y="250" width="6" height="180" rx="3" fill="#58a6ff"/>
+        </g>
+        <text class="b-title" x="432" y="282" fill="#58a6ff">code_icu orchestrator</text>
+        <text class="b-sub" x="432" y="304">the glue between every platform</text>
+        <text class="b-mono" x="432" y="332">• heuristic anomaly detection</text>
+        <text class="b-mono" x="432" y="352">• runs the 5 agents &amp; gates the call</text>
+        <text class="b-mono" x="432" y="372">• self-healing fix loop + rollback</text>
+        <text class="b-mono" x="432" y="400">anomaly_detector.py · agents/monitor.py · fix.py</text>
 
-      <div class="arrow"><span class="line"></span><span class="label">if decision == "fix"</span><span class="chev">&#9660;</span></div>
+        <!-- VAPI -->
+        <g filter="url(#soft)">
+          <rect x="884" y="250" width="240" height="116" rx="12" fill="#101725" stroke="#d06bff" stroke-width="1.5"/>
+          <rect x="884" y="250" width="6" height="116" rx="3" fill="#d06bff"/>
+        </g>
+        <text class="b-title" x="906" y="282" fill="#d06bff">Vapi</text>
+        <text class="b-sub" x="906" y="302">outbound voice call</text>
+        <text class="b-mono" x="906" y="326">hosts agent 5 as a live</text>
+        <text class="b-mono" x="906" y="344">voice assistant · variableValues</text>
 
-      <div class="node core">
-        <div class="title">
-          <span class="name">Self-healing loop</span>
-          <span class="file">agents/fix.py</span>
-          <span class="tags"><span class="tag core">code_icu</span><span class="tag nebius">agent 5</span><span class="tag insforge">fix_attempts</span></span>
-        </div>
-        <div class="desc">Agent 5's patch is applied with a file backup + <code style="font-family:var(--mono)">changes.txt</code>; a <code style="font-family:var(--mono)">fix_attempts</code> row stores the exact edit and the error it addressed, and a corrected re-run is registered with lineage. Fully reversible.</div>
-      </div>
+        <!-- HUMAN -->
+        <g filter="url(#soft)">
+          <rect x="884" y="408" width="240" height="96" rx="12" fill="#101725" stroke="#9aa4b2" stroke-width="1.5"/>
+          <rect x="884" y="408" width="6" height="96" rx="3" fill="#9aa4b2"/>
+        </g>
+        <text class="b-title" x="906" y="440" fill="#d6dce4">Researcher &#128222;</text>
+        <text class="b-sub" x="906" y="462">answers the phone</text>
+        <text class="b-mono" x="906" y="484">kill · pause · continue · fix</text>
 
-      <div class="node insforge sidebar-note">
-        <div class="title">
-          <span class="name">Dashboard (this app)</span>
-          <span class="file">dashboard/index.html · architecture.html</span>
-          <span class="tags"><span class="tag insforge">InsForge SDK · Google OAuth · RLS</span></span>
-        </div>
-        <div class="desc">A static page reads <code style="font-family:var(--mono)">run_logs</code>, <code style="font-family:var(--mono)">call_decisions</code>, <code style="font-family:var(--mono)">agent_events</code>, and <code style="font-family:var(--mono)">fix_attempts</code> through the authenticated InsForge SDK (Chart.js for curves). "Restore" flags a fix as <code style="font-family:var(--mono)">rollback_requested</code>; <code style="font-family:var(--mono)">agents/fix.py watch</code> performs the real revert.</div>
-      </div>
+        <!-- INSFORGE (data backbone) -->
+        <g filter="url(#soft)">
+          <rect x="150" y="624" width="824" height="150" rx="12" fill="#13101f" stroke="#8b7cff" stroke-width="1.5"/>
+          <rect x="150" y="624" width="6" height="150" rx="3" fill="#8b7cff"/>
+        </g>
+        <text class="b-title" x="174" y="656" fill="#8b7cff">InsForge — data backbone</text>
+        <text class="b-sub" x="174" y="678">Postgres · Google OAuth · per-user Row-Level Security · agent registry</text>
+        <!-- table chips -->
+        <g font-family="ui-monospace, Menlo, Consolas, monospace" font-size="11.5">
+          <rect x="174" y="694" width="96" height="24" rx="6" fill="#1a1530" stroke="#8b7cff" stroke-width="1"/><text x="182" y="710" fill="#cfc8ff">run_logs</text>
+          <rect x="278" y="694" width="66" height="24" rx="6" fill="#1a1530" stroke="#8b7cff" stroke-width="1"/><text x="286" y="710" fill="#cfc8ff">runs</text>
+          <rect x="352" y="694" width="84" height="24" rx="6" fill="#1a1530" stroke="#8b7cff" stroke-width="1"/><text x="360" y="710" fill="#cfc8ff">profiles</text>
+          <rect x="444" y="694" width="78" height="24" rx="6" fill="#1a1530" stroke="#8b7cff" stroke-width="1"/><text x="452" y="710" fill="#cfc8ff">agents</text>
+          <rect x="530" y="694" width="124" height="24" rx="6" fill="#1a1530" stroke="#8b7cff" stroke-width="1"/><text x="538" y="710" fill="#cfc8ff">call_decisions</text>
+          <rect x="662" y="694" width="120" height="24" rx="6" fill="#1a1530" stroke="#8b7cff" stroke-width="1"/><text x="670" y="710" fill="#cfc8ff">agent_events</text>
+          <rect x="790" y="694" width="112" height="24" rx="6" fill="#1a1530" stroke="#8b7cff" stroke-width="1"/><text x="798" y="710" fill="#cfc8ff">fix_attempts</text>
+        </g>
+        <text class="b-mono" x="174" y="744">log_pusher.py · agents/trace.py · dashboard SDK</text>
+      </svg>
     </div>
 
     <h2 class="section">How each platform is used</h2>

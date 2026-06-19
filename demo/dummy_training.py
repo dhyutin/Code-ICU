@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Simulated training run. Loss spikes to 5.5 at step 50."""
 
+import os
 import sys
 import time
 import random
@@ -11,7 +12,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from log_pusher import push_log
 
-RUN_ID = f"demo-run-{datetime.now().strftime('%H%M%S')}"
+RUN_ID = os.getenv("CODE_ICU_RUN_ID") or f"demo-run-{datetime.now().strftime('%H%M%S')}"
 STEPS = 100
 SPIKE_STEP = 50
 STEP_DELAY = 0.8

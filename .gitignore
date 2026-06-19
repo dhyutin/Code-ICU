@@ -12,7 +12,12 @@ test_nebius.py
 
 # Agent runtime artifacts
 backups/
+reruns/
 code_context.json
+
+# Exported dataset (may contain transcripts) — keep the README
+dataset/*.jsonl
+dataset/stats.json
 
 
 # InsForge & AI agent skills
