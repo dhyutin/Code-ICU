@@ -1,0 +1,283 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>code_icu — architecture</title>
+  <style>
+    :root {
+      --bg: #0a0e14;
+      --panel: #121823;
+      --border: #1f2937;
+      --text: #e6edf3;
+      --muted: #7d8590;
+      --accent: #58a6ff;
+      --hf: #ffb020;
+      --torch: #ee4c2c;
+      --insforge: #8b7cff;
+      --nebius: #2dd4bf;
+      --vapi: #d06bff;
+      --core: #58a6ff;
+      --mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+      --sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; background: var(--bg); color: var(--text); font-family: var(--sans); padding: 1.5rem; }
+    a { color: var(--accent); text-decoration: none; }
+    a:hover { text-decoration: underline; }
+    header { display: flex; align-items: baseline; justify-content: space-between; gap: 1rem; margin-bottom: 1.25rem; flex-wrap: wrap; }
+    h1 { margin: 0; font-size: 1.4rem; letter-spacing: -0.02em; }
+    h1 .pulse { color: #f85149; }
+    .tagline { color: var(--muted); font-size: 0.85rem; margin: 0.2rem 0 0; }
+    .nav { font-size: 0.85rem; }
+    .wrap { max-width: 1080px; margin: 0 auto; }
+
+    /* legend */
+    .legend { display: flex; gap: 0.6rem; flex-wrap: wrap; margin-bottom: 1.5rem; }
+    .pill {
+      display: inline-flex; align-items: center; gap: 0.45rem;
+      border: 1px solid var(--border); background: var(--panel);
+      border-radius: 999px; padding: 0.32rem 0.7rem; font-size: 0.78rem;
+    }
+    .pill .swatch { width: 10px; height: 10px; border-radius: 3px; }
+    .pill .role { color: var(--muted); }
+
+    /* flow */
+    .flow { display: flex; flex-direction: column; align-items: center; gap: 0; }
+    .node {
+      width: 100%; max-width: 720px; border: 1px solid var(--border);
+      border-left: 4px solid var(--core); background: var(--panel);
+      border-radius: 10px; padding: 0.9rem 1.1rem;
+    }
+    .node.hf { border-left-color: var(--hf); }
+    .node.torch { border-left-color: var(--torch); }
+    .node.insforge { border-left-color: var(--insforge); }
+    .node.nebius { border-left-color: var(--nebius); }
+    .node.vapi { border-left-color: var(--vapi); }
+    .node .title { display: flex; align-items: center; gap: 0.6rem; flex-wrap: wrap; }
+    .node .title .name { font-size: 0.98rem; font-weight: 600; }
+    .node .title .file { font-family: var(--mono); font-size: 0.72rem; color: var(--muted); }
+    .node .desc { color: var(--muted); font-size: 0.83rem; margin-top: 0.4rem; line-height: 1.5; }
+    .tags { display: flex; gap: 0.4rem; flex-wrap: wrap; margin-left: auto; }
+    .tag {
+      font-size: 0.66rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em;
+      padding: 0.12rem 0.5rem; border-radius: 999px;
+    }
+    .tag.hf { background: rgba(255,176,32,0.16); color: var(--hf); }
+    .tag.torch { background: rgba(238,76,44,0.16); color: var(--torch); }
+    .tag.insforge { background: rgba(139,124,255,0.18); color: var(--insforge); }
+    .tag.nebius { background: rgba(45,212,191,0.16); color: var(--nebius); }
+    .tag.vapi { background: rgba(208,107,255,0.16); color: var(--vapi); }
+    .tag.core { background: rgba(88,166,255,0.16); color: var(--core); }
+
+    .arrow { display: flex; flex-direction: column; align-items: center; color: var(--muted); padding: 0.15rem 0; }
+    .arrow .line { width: 2px; height: 16px; background: var(--border); }
+    .arrow .label { font-family: var(--mono); font-size: 0.68rem; color: var(--muted); padding: 0.15rem 0; }
+    .arrow .chev { font-size: 0.8rem; line-height: 1; }
+
+    .subnodes { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 0.5rem; margin-top: 0.7rem; }
+    .sub { border: 1px solid var(--border); border-radius: 7px; padding: 0.5rem 0.6rem; background: #0e141f; }
+    .sub .n { font-size: 0.8rem; font-weight: 600; }
+    .sub .d { color: var(--muted); font-size: 0.72rem; margin-top: 0.15rem; line-height: 1.4; }
+    .sub .idx { color: var(--nebius); font-family: var(--mono); font-size: 0.7rem; }
+
+    /* dashboard side-card */
+    .sidebar-note { width: 100%; max-width: 720px; margin-top: 1rem; }
+
+    /* platform usage cards */
+    h2.section { font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); margin: 2.25rem 0 1rem; }
+    .usage { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 1rem; }
+    .ucard { border: 1px solid var(--border); border-top: 3px solid var(--core); background: var(--panel); border-radius: 10px; padding: 1rem 1.1rem; }
+    .ucard.hf { border-top-color: var(--hf); }
+    .ucard.torch { border-top-color: var(--torch); }
+    .ucard.insforge { border-top-color: var(--insforge); }
+    .ucard.nebius { border-top-color: var(--nebius); }
+    .ucard.vapi { border-top-color: var(--vapi); }
+    .ucard h3 { margin: 0 0 0.5rem; font-size: 0.98rem; }
+    .ucard ul { margin: 0; padding-left: 1.05rem; }
+    .ucard li { color: var(--muted); font-size: 0.82rem; line-height: 1.6; }
+    .ucard li code { font-family: var(--mono); font-size: 0.76rem; color: var(--text); background: #0e141f; padding: 0.05rem 0.3rem; border-radius: 4px; }
+    footer { color: var(--muted); font-size: 0.75rem; text-align: center; margin-top: 2.5rem; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <header>
+      <div>
+        <h1>code_icu <span class="pulse">&#9829;</span> — architecture</h1>
+        <p class="tagline">how a dying training run becomes a phone call, a decision, and a fix</p>
+      </div>
+      <div class="nav"><a href="/">&larr; back to live monitor</a></div>
+    </header>
+
+    <div class="legend">
+      <span class="pill"><span class="swatch" style="background:var(--hf)"></span>Hugging Face <span class="role">· datasets</span></span>
+      <span class="pill"><span class="swatch" style="background:var(--torch)"></span>PyTorch <span class="role">· training</span></span>
+      <span class="pill"><span class="swatch" style="background:var(--insforge)"></span>InsForge <span class="role">· DB · auth · RLS</span></span>
+      <span class="pill"><span class="swatch" style="background:var(--nebius)"></span>Nebius <span class="role">· 5 LLM agents</span></span>
+      <span class="pill"><span class="swatch" style="background:var(--vapi)"></span>Vapi <span class="role">· voice calls</span></span>
+      <span class="pill"><span class="swatch" style="background:var(--core)"></span>code_icu <span class="role">· orchestration</span></span>
+    </div>
+
+    <div class="flow">
+      <div class="node torch">
+        <div class="title">
+          <span class="name">Training job</span>
+          <span class="file">examples/*.py · demo/dummy_training.py</span>
+          <span class="tags"><span class="tag torch">PyTorch</span><span class="tag hf">Hugging Face</span></span>
+        </div>
+        <div class="desc">Real MLPs train on Hugging Face datasets (<code style="font-family:var(--mono)">rotten_tomatoes</code>, <code style="font-family:var(--mono)">mnist</code>). Each step emits real loss, gradient norm, and learning rate.</div>
+      </div>
+
+      <div class="arrow"><span class="line"></span><span class="label">push_log(loss, grad_norm, lr)</span><span class="chev">&#9660;</span></div>
+
+      <div class="node insforge">
+        <div class="title">
+          <span class="name">Metrics store — run_logs</span>
+          <span class="file">log_pusher.py</span>
+          <span class="tags"><span class="tag insforge">InsForge Postgres</span></span>
+        </div>
+        <div class="desc">Every step is written to the <code style="font-family:var(--mono)">run_logs</code> table, owner-scoped by RLS through the <code style="font-family:var(--mono)">runs</code> row.</div>
+      </div>
+
+      <div class="arrow"><span class="line"></span><span class="label">anomaly_detector polls recent window</span><span class="chev">&#9660;</span></div>
+
+      <div class="node core">
+        <div class="title">
+          <span class="name">Heuristic flag</span>
+          <span class="file">anomaly_detector.py · agents/monitor.py</span>
+          <span class="tags"><span class="tag core">code_icu</span></span>
+        </div>
+        <div class="desc">Cheap checks catch a grad explosion (norm &gt; limit) or a sudden loss jump in the recent window, then hand off to the agents.</div>
+      </div>
+
+      <div class="arrow"><span class="line"></span><span class="label">structured context + report</span><span class="chev">&#9660;</span></div>
+
+      <div class="node nebius">
+        <div class="title">
+          <span class="name">Agent pipeline</span>
+          <span class="file">agents/runtime.py (registry-driven) · agents/nebius_client.py</span>
+          <span class="tags"><span class="tag nebius">Nebius LLMs</span><span class="tag insforge">agents table</span></span>
+        </div>
+        <div class="desc">Five specialised agents, each defined by a row in the InsForge <code style="font-family:var(--mono)">agents</code> table and run through the Nebius gateway.</div>
+        <div class="subnodes">
+          <div class="sub"><div class="n"><span class="idx">1</span> Code Context</div><div class="d">Reads the training script → summary, hyperparams, failure points</div></div>
+          <div class="sub"><div class="n"><span class="idx">2</span> Monitor</div><div class="d">Interprets the live metric stream</div></div>
+          <div class="sub"><div class="n"><span class="idx">3</span> Error Detection</div><div class="d">Classifies the failure + severity</div></div>
+          <div class="sub"><div class="n"><span class="idx">4</span> Call Decision</div><div class="d">Decides whether to phone the human</div></div>
+          <div class="sub"><div class="n"><span class="idx">5</span> Conversation &amp; Fix</div><div class="d">Talks on the call, proposes the patch</div></div>
+        </div>
+      </div>
+
+      <div class="arrow"><span class="line"></span><span class="label">agent 4 says "call"</span><span class="chev">&#9660;</span></div>
+
+      <div class="node vapi">
+        <div class="title">
+          <span class="name">Outbound voice call</span>
+          <span class="file">agents/monitor.py · agents/sync_vapi.py</span>
+          <span class="tags"><span class="tag vapi">Vapi</span><span class="tag nebius">agent 5 prompt</span></span>
+        </div>
+        <div class="desc">Vapi places the call with the anomaly brief, recent logs, and code context injected as <code style="font-family:var(--mono)">variableValues</code>. The researcher talks to agent 5 live.</div>
+      </div>
+
+      <div class="arrow"><span class="line"></span><span class="label">transcript</span><span class="chev">&#9660;</span></div>
+
+      <div class="node nebius">
+        <div class="title">
+          <span class="name">Decision extraction</span>
+          <span class="file">agents/nebius_client.py · extract_decision()</span>
+          <span class="tags"><span class="tag nebius">Nebius</span></span>
+        </div>
+        <div class="desc">The transcript is distilled to one of <code style="font-family:var(--mono)">kill · pause · continue · fix</code>.</div>
+      </div>
+
+      <div class="arrow"><span class="line"></span><span class="label">persist decision + full agent/human trail</span><span class="chev">&#9660;</span></div>
+
+      <div class="node insforge">
+        <div class="title">
+          <span class="name">call_decisions + agent_events</span>
+          <span class="file">agents/trace.py</span>
+          <span class="tags"><span class="tag insforge">InsForge Postgres</span></span>
+        </div>
+        <div class="desc">The decision and every agent input/output + the human transcript are logged for traceability and a future fine-tuning dataset.</div>
+      </div>
+
+      <div class="arrow"><span class="line"></span><span class="label">if decision == "fix"</span><span class="chev">&#9660;</span></div>
+
+      <div class="node core">
+        <div class="title">
+          <span class="name">Self-healing loop</span>
+          <span class="file">agents/fix.py</span>
+          <span class="tags"><span class="tag core">code_icu</span><span class="tag nebius">agent 5</span><span class="tag insforge">fix_attempts</span></span>
+        </div>
+        <div class="desc">Agent 5's patch is applied with a file backup + <code style="font-family:var(--mono)">changes.txt</code>; a <code style="font-family:var(--mono)">fix_attempts</code> row stores the exact edit and the error it addressed, and a corrected re-run is registered with lineage. Fully reversible.</div>
+      </div>
+
+      <div class="node insforge sidebar-note">
+        <div class="title">
+          <span class="name">Dashboard (this app)</span>
+          <span class="file">dashboard/index.html · architecture.html</span>
+          <span class="tags"><span class="tag insforge">InsForge SDK · Google OAuth · RLS</span></span>
+        </div>
+        <div class="desc">A static page reads <code style="font-family:var(--mono)">run_logs</code>, <code style="font-family:var(--mono)">call_decisions</code>, <code style="font-family:var(--mono)">agent_events</code>, and <code style="font-family:var(--mono)">fix_attempts</code> through the authenticated InsForge SDK (Chart.js for curves). "Restore" flags a fix as <code style="font-family:var(--mono)">rollback_requested</code>; <code style="font-family:var(--mono)">agents/fix.py watch</code> performs the real revert.</div>
+      </div>
+    </div>
+
+    <h2 class="section">How each platform is used</h2>
+    <div class="usage">
+      <div class="ucard hf">
+        <h3>Hugging Face</h3>
+        <ul>
+          <li>Source of the real training data via <code>datasets.load_dataset</code></li>
+          <li><code>rotten_tomatoes</code> (text) and <code>mnist</code> (vision) example tasks</li>
+          <li>Working + intentionally-buggy <code>*_fail.py</code> variants for the demo</li>
+        </ul>
+      </div>
+      <div class="ucard torch">
+        <h3>PyTorch</h3>
+        <ul>
+          <li>The actual model training (small MLPs, real autograd)</li>
+          <li>Produces the genuine loss / gradient-norm signal we monitor</li>
+          <li>The bugs (high LR, missing normalization) cause real divergence</li>
+        </ul>
+      </div>
+      <div class="ucard insforge">
+        <h3>InsForge</h3>
+        <ul>
+          <li>Postgres backend: <code>run_logs</code>, <code>runs</code>, <code>profiles</code>, <code>agents</code>, <code>call_decisions</code>, <code>agent_events</code>, <code>fix_attempts</code></li>
+          <li>Google OAuth auth + per-user Row-Level Security</li>
+          <li>Agent registry (prompts/models live in the DB, not code)</li>
+          <li>SDK powers the dashboard reads and the Restore action</li>
+        </ul>
+      </div>
+      <div class="ucard nebius">
+        <h3>Nebius</h3>
+        <ul>
+          <li>LLM gateway (OpenAI-compatible) for all five agents</li>
+          <li>Code understanding, error classification, call gating</li>
+          <li>Distills the call transcript into a single decision</li>
+          <li>Proposes the minimal code patch in the self-healing loop</li>
+        </ul>
+      </div>
+      <div class="ucard vapi">
+        <h3>Vapi</h3>
+        <ul>
+          <li>Places the outbound phone call to the researcher</li>
+          <li>Hosts agent 5 as a live voice assistant</li>
+          <li>Receives run context via <code>variableValues</code> and returns the transcript</li>
+        </ul>
+      </div>
+      <div class="ucard core">
+        <h3>code_icu core</h3>
+        <ul>
+          <li>Heuristic anomaly detection + agent orchestration</li>
+          <li>Backups, <code>changes.txt</code>, rollback watcher</li>
+          <li>Glue between PyTorch, InsForge, Nebius, and Vapi</li>
+        </ul>
+      </div>
+    </div>
+
+    <footer>code_icu — an ICU for ML training runs.</footer>
+  </div>
+</body>
+</html>
