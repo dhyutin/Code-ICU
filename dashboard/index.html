@@ -1,0 +1,287 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>code_icu — live monitor</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+  <style>
+    :root {
+      --bg: #0a0e14;
+      --panel: #121823;
+      --border: #1f2937;
+      --text: #e6edf3;
+      --muted: #7d8590;
+      --accent: #58a6ff;
+      --red: #f85149;
+      --green: #3fb950;
+      --amber: #d29922;
+      --mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+      --sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--text);
+      font-family: var(--sans);
+      padding: 1.5rem;
+    }
+    header {
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      gap: 1rem;
+      margin-bottom: 1.25rem;
+      flex-wrap: wrap;
+    }
+    h1 { margin: 0; font-size: 1.4rem; letter-spacing: -0.02em; }
+    h1 .pulse { color: var(--red); }
+    .tagline { color: var(--muted); font-size: 0.85rem; margin: 0.2rem 0 0; }
+    .controls { display: flex; align-items: center; gap: 0.6rem; font-size: 0.85rem; }
+    select {
+      background: var(--panel); color: var(--text);
+      border: 1px solid var(--border); border-radius: 6px;
+      padding: 0.35rem 0.6rem; font: inherit; font-family: var(--mono); font-size: 0.8rem;
+    }
+    .dot {
+      display: inline-block; width: 8px; height: 8px; border-radius: 50%;
+      background: var(--green); margin-right: 0.35rem; vertical-align: middle;
+    }
+    .dot.live { animation: blink 1.4s ease-in-out infinite; }
+    @keyframes blink { 50% { opacity: 0.25; } }
+    .grid { display: grid; grid-template-columns: 1fr; gap: 1.25rem; }
+    .panel {
+      background: var(--panel); border: 1px solid var(--border);
+      border-radius: 10px; padding: 1.1rem 1.25rem;
+    }
+    .panel h2 {
+      margin: 0 0 0.9rem; font-size: 0.72rem; text-transform: uppercase;
+      letter-spacing: 0.08em; color: var(--muted); font-weight: 600;
+    }
+    .stats { display: flex; gap: 1.75rem; flex-wrap: wrap; margin-bottom: 0.5rem; }
+    .stat .label { color: var(--muted); font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.06em; }
+    .stat .value { font-family: var(--mono); font-size: 1.25rem; margin-top: 0.15rem; }
+    .value.alert { color: var(--red); }
+    .chart-wrap { position: relative; height: 320px; }
+    table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
+    th, td { text-align: left; padding: 0.55rem 0.6rem; border-bottom: 1px solid var(--border); }
+    th { color: var(--muted); font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.06em; font-weight: 600; }
+    td { font-family: var(--mono); font-size: 0.8rem; }
+    .badge {
+      display: inline-block; padding: 0.12rem 0.5rem; border-radius: 999px;
+      font-size: 0.72rem; font-weight: 600; font-family: var(--sans);
+    }
+    .badge.kill { background: rgba(248,81,73,0.15); color: var(--red); }
+    .badge.pause { background: rgba(210,153,34,0.15); color: var(--amber); }
+    .badge.continue { background: rgba(63,185,80,0.15); color: var(--green); }
+    .badge.unknown { background: rgba(125,133,144,0.15); color: var(--muted); }
+    .empty { color: var(--muted); font-style: italic; padding: 0.75rem 0; }
+  </style>
+</head>
+<body>
+  <header>
+    <div>
+      <h1>code_icu <span class="pulse">&#9829;</span></h1>
+      <p class="tagline">live training monitor — "I see your run dying. We called."</p>
+    </div>
+    <div class="controls">
+      <label for="run-select">run</label>
+      <select id="run-select"></select>
+      <span><span class="dot live" id="live-dot"></span><span id="poll-status">live</span></span>
+    </div>
+  </header>
+
+  <div class="grid">
+    <section class="panel">
+      <h2>Loss curve</h2>
+      <div class="stats">
+        <div class="stat"><div class="label">run</div><div class="value" id="stat-run">—</div></div>
+        <div class="stat"><div class="label">step</div><div class="value" id="stat-step">—</div></div>
+        <div class="stat"><div class="label">loss</div><div class="value" id="stat-loss">—</div></div>
+        <div class="stat"><div class="label">grad norm</div><div class="value" id="stat-grad">—</div></div>
+        <div class="stat"><div class="label">status</div><div class="value" id="stat-state">—</div></div>
+      </div>
+      <div class="chart-wrap"><canvas id="loss-chart"></canvas></div>
+    </section>
+
+    <section class="panel">
+      <h2>Call decisions</h2>
+      <table>
+        <thead>
+          <tr><th>run</th><th>anomaly</th><th>step</th><th>decision</th><th>time</th></tr>
+        </thead>
+        <tbody id="decisions-body">
+          <tr><td colspan="5" class="empty">No decisions logged yet.</td></tr>
+        </tbody>
+      </table>
+    </section>
+  </div>
+
+  <script>
+    // Anon key is read-only by design and safe to expose in the browser.
+    const CONFIG = {
+      url: "https://f343zu6i.us-east.insforge.app",
+      anonKey: "anon_2b346540e21040864c2c54f2c1bb8f6a48f4c9b4d92fc5a8a3f2ef0b3f3255b7",
+      pollMs: 3000,
+      gradLimit: 100,
+      spikeRatio: 2.0,
+    };
+
+    const headers = { Authorization: `Bearer ${CONFIG.anonKey}` };
+    const api = (table, qs) => `${CONFIG.url}/api/database/records/${table}?${qs}`;
+
+    let selectedRun = null;
+    let userPinnedRun = false;
+
+    async function getJSON(u) {
+      const r = await fetch(u, { headers });
+      if (!r.ok) throw new Error(`${r.status} ${await r.text()}`);
+      return r.json();
+    }
+
+    function isAnomalyPoint(rows, i) {
+      const row = rows[i];
+      if (row.grad_norm != null && row.grad_norm > CONFIG.gradLimit) return true;
+      if (i > 0) {
+        const prior = rows.slice(0, i).map(r => r.loss);
+        const mean = prior.reduce((a, b) => a + b, 0) / prior.length;
+        if (mean > 0 && row.loss > mean * CONFIG.spikeRatio) return true;
+      }
+      return false;
+    }
+
+    let chart;
+    function renderChart(rows) {
+      const labels = rows.map(r => r.step);
+      const losses = rows.map(r => r.loss);
+      const pointColors = rows.map((_, i) => (isAnomalyPoint(rows, i) ? "#f85149" : "#58a6ff"));
+      const pointRadii = rows.map((_, i) => (isAnomalyPoint(rows, i) ? 6 : 2));
+
+      if (!chart) {
+        const ctx = document.getElementById("loss-chart").getContext("2d");
+        chart = new Chart(ctx, {
+          type: "line",
+          data: {
+            labels,
+            datasets: [{
+              label: "loss",
+              data: losses,
+              borderColor: "#58a6ff",
+              backgroundColor: "rgba(88,166,255,0.08)",
+              borderWidth: 2,
+              fill: true,
+              tension: 0.25,
+              pointBackgroundColor: pointColors,
+              pointBorderColor: pointColors,
+              pointRadius: pointRadii,
+            }],
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            animation: false,
+            scales: {
+              x: { grid: { color: "#1f2937" }, ticks: { color: "#7d8590" }, title: { display: true, text: "step", color: "#7d8590" } },
+              y: { grid: { color: "#1f2937" }, ticks: { color: "#7d8590" }, title: { display: true, text: "loss", color: "#7d8590" } },
+            },
+            plugins: { legend: { display: false } },
+          },
+        });
+      } else {
+        chart.data.labels = labels;
+        chart.data.datasets[0].data = losses;
+        chart.data.datasets[0].pointBackgroundColor = pointColors;
+        chart.data.datasets[0].pointBorderColor = pointColors;
+        chart.data.datasets[0].pointRadius = pointRadii;
+        chart.update();
+      }
+    }
+
+    function renderStats(rows) {
+      const latest = rows[rows.length - 1];
+      document.getElementById("stat-run").textContent = selectedRun || "—";
+      document.getElementById("stat-step").textContent = latest ? latest.step : "—";
+      document.getElementById("stat-loss").textContent = latest ? latest.loss.toFixed(4) : "—";
+      document.getElementById("stat-grad").textContent =
+        latest && latest.grad_norm != null ? latest.grad_norm.toFixed(2) : "—";
+
+      const anomalous = rows.length && isAnomalyPoint(rows, rows.length - 1);
+      const stateEl = document.getElementById("stat-state");
+      stateEl.textContent = anomalous ? "ANOMALY" : "OK";
+      stateEl.className = "value" + (anomalous ? " alert" : "");
+    }
+
+    function timeAgo(ts) {
+      const d = new Date(ts);
+      return d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" });
+    }
+
+    function renderDecisions(rows) {
+      const body = document.getElementById("decisions-body");
+      if (!rows.length) {
+        body.innerHTML = `<tr><td colspan="5" class="empty">No decisions logged yet.</td></tr>`;
+        return;
+      }
+      body.innerHTML = rows.map(r => {
+        const dec = (r.decision || "unknown").toLowerCase();
+        return `<tr>
+          <td>${r.run_id}</td>
+          <td>${r.anomaly_type}</td>
+          <td>${r.anomaly_step ?? "—"}</td>
+          <td><span class="badge ${dec}">${dec}</span></td>
+          <td>${timeAgo(r.created_at)}</td>
+        </tr>`;
+      }).join("");
+    }
+
+    async function refreshRunList() {
+      // Most recent 200 log rows → distinct run_ids, newest first
+      const recent = await getJSON(api("run_logs", "order=created_at.desc&limit=200"));
+      const seen = [];
+      for (const row of recent) if (!seen.includes(row.run_id)) seen.push(row.run_id);
+
+      const sel = document.getElementById("run-select");
+      const current = sel.value;
+      sel.innerHTML = seen.map(r => `<option value="${r}">${r}</option>`).join("");
+
+      if (!userPinnedRun) selectedRun = seen[0] || null;
+      sel.value = selectedRun || current;
+    }
+
+    async function tick() {
+      const dot = document.getElementById("live-dot");
+      const status = document.getElementById("poll-status");
+      try {
+        await refreshRunList();
+        if (!selectedRun) { status.textContent = "waiting for runs…"; return; }
+
+        const logs = await getJSON(
+          api("run_logs", `run_id=eq.${selectedRun}&order=step.asc&limit=500`)
+        );
+        renderChart(logs);
+        renderStats(logs);
+
+        const decisions = await getJSON(api("call_decisions", "order=created_at.desc&limit=20"));
+        renderDecisions(decisions);
+
+        dot.style.background = "#3fb950";
+        status.textContent = "live";
+      } catch (e) {
+        dot.style.background = "#f85149";
+        status.textContent = "error — retrying";
+        console.error(e);
+      }
+    }
+
+    document.getElementById("run-select").addEventListener("change", (e) => {
+      selectedRun = e.target.value;
+      userPinnedRun = true;
+      tick();
+    });
+
+    tick();
+    setInterval(tick, CONFIG.pollMs);
+  </script>
+</body>
+</html>
