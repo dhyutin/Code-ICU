@@ -1,15 +1,21 @@
 {
-  "summary": "This script simulates a training run with a loss spike at step 50. It logs loss and gradient norm at each step.",
-  "architecture": "Not specified",
+  "summary": "This script trains a 2-layer MLP for sentiment classification on the rotten_tomatoes dataset. It uses a hashed bag-of-words representation and streams metrics to code_icu.",
+  "architecture": "2-layer MLP",
   "hyperparams": {
-    "LR": 0.0003,
-    "STEPS": 100,
-    "STEP_DELAY": 0.8
+    "DIM": 4096,
+    "HIDDEN": 128,
+    "BATCH": 32,
+    "STEPS": 28,
+    "LR": 30.0,
+    "DELAY": 1.1,
+    "SUBSET": 3000
   },
-  "data_flow": "Simulated data",
+  "data_flow": "load_dataset -> hashing_vectorize -> model -> loss_fn -> opt",
   "likely_failure_points": [
-    "loss spike",
-    "gradient explosion"
+    "data loading",
+    "model initialization",
+    "optimization",
+    "loss calculation"
   ],
-  "_script_path": "demo/dummy_training.py"
+  "_script_path": "examples/text_sentiment_fail.py"
 }

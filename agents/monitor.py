@@ -59,7 +59,10 @@ _VAPI_HEADERS = {
 }
 
 # Optional: load the caller's saved preferences to inform the Call Decision agent.
-USER_PREFS = json.loads(os.getenv("CALL_PREFS", "{}"))
+# Default: call on serious (high/critical) failures.
+USER_PREFS = json.loads(
+    os.getenv("CALL_PREFS", '{"call_on": "high or critical severity", "contact": "phone"}')
+)
 
 
 def _trigger_call(anomaly: dict, report: dict) -> str:

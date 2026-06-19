@@ -162,16 +162,30 @@ def detect_error(
 
 
 def decide_call(error_report: dict, *, prefs: dict | None = None) -> dict:
-    """Agent 4 — Call Decision: should we phone the researcher?"""
+    """Agent 4 — Call Decision: should we phone the researcher?
+
+    A high/critical failure is worth a call by default — missing preferences mean
+    "call me on serious problems", not "stay silent". A deterministic safety net
+    guarantees the call on severe failures unless prefs explicitly forbid it.
+    """
+    prefs = prefs or {}
     prompt = (
         "Given the error report and the user's preferences, decide whether to "
         "interrupt the researcher with a phone call. Respond with JSON only, "
-        "with keys: call (boolean), reason (one short sentence). When unsure, "
-        "do not call.\n\n"
+        "with keys: call (boolean), reason (one short sentence). "
+        "Call when the failure is severe or actionable. If severity is high or "
+        "critical, you should call unless preferences explicitly say otherwise. "
+        "Treat missing preferences as 'call me on serious problems'.\n\n"
         f"Error report: {json.dumps(error_report)}\n\n"
-        f"User preferences: {json.dumps(prefs or {})}"
+        f"User preferences: {json.dumps(prefs)}"
     )
-    return run_agent_json("call_decision", prompt)
+    result = run_agent_json("call_decision", prompt)
+
+    # Deterministic safety net: never silently swallow a severe failure.
+    severity = str(error_report.get("severity", "")).lower()
+    if severity in ("high", "critical") and not prefs.get("never_call") and not result.get("call"):
+        result = {"call": True, "reason": f"Severity {severity}: calling on a serious failure."}
+    return result
 
 
 if __name__ == "__main__":
