@@ -339,6 +339,7 @@
         await insforge.auth.signOut();
         window.location.replace("/login.html");
       });
+      window.db = insforge.database;
       document.body.classList.remove("gated");
       window.startDashboard();
     }

@@ -1,12 +1,14 @@
-"""Nebius AI Studio client (OpenAI-compatible)."""
+"""Nebius AI Studio client (OpenAI-compatible) — the agents' LLM gateway."""
 
 import os
 import re
+from pathlib import Path
 
 from dotenv import load_dotenv
 from openai import OpenAI
 
-load_dotenv()
+ROOT = Path(__file__).resolve().parent.parent
+load_dotenv(ROOT / ".env")
 
 NEBIUS_BASE_URL = os.getenv("NEBIUS_BASE_URL", "https://api.studio.nebius.ai/v1")
 NEBIUS_MODEL = os.getenv("NEBIUS_MODEL", "meta-llama/Llama-3.3-70B-Instruct")

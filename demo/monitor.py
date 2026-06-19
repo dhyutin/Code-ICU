@@ -12,7 +12,7 @@ from dotenv import load_dotenv
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from anomaly_detector import check_anomaly
-from nebius_client import extract_decision
+from agents.nebius_client import extract_decision
 
 load_dotenv(Path(__file__).parent.parent / ".env")
 

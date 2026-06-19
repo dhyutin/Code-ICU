@@ -18,7 +18,7 @@ load_dotenv(ROOT / ".env")
 REQUIRED_FILES = [
     "log_pusher.py",
     "anomaly_detector.py",
-    "nebius_client.py",
+    "agents/nebius_client.py",
     "requirements.txt",
     "migrations/20260619183440_init-schema.sql",
     ".env",
@@ -85,7 +85,7 @@ def check_push_and_detect() -> None:
 
 
 def check_nebius() -> None:
-    from nebius_client import chat
+    from agents.nebius_client import chat
 
     reply = chat("Reply with exactly: ok", temperature=0)
     if "ok" not in reply.lower():

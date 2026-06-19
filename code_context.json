@@ -1,0 +1,15 @@
+{
+  "summary": "This script simulates a training run with a loss spike at step 50. It logs loss and gradient norm at each step.",
+  "architecture": "Not specified",
+  "hyperparams": {
+    "LR": 0.0003,
+    "STEPS": 100,
+    "STEP_DELAY": 0.8
+  },
+  "data_flow": "Simulated data",
+  "likely_failure_points": [
+    "loss spike",
+    "gradient explosion"
+  ],
+  "_script_path": "demo/dummy_training.py"
+}
