@@ -19,6 +19,69 @@ Code-ICU is an autonomous ML training monitor that watches your training runs in
 
 ## Architecture
 
+```mermaid
+flowchart TD
+    A["🏋️ Training Script<br/>(push_log every step)"] -->|loss, grad_norm, lr| B[("🗄️ InsForge<br/>Postgres — run_logs")]
+    B --> C["🔎 anomaly_detector.py<br/>polls every 15s"]
+
+    C -->|"grad explosion / loss spike / plateau"| D{"🚨 Anomaly<br/>detected?"}
+    D -->|no| C
+    D -->|yes| E["🤖 Agent Pipeline<br/>(Nebius · Llama-3.3-70B)"]
+
+    subgraph AGENTS [" "]
+        direction TB
+        E1["Agent 1 — Code Context<br/>reads script, extracts hyperparams"]
+        E2["Agent 3 — Error Detection<br/>type · step · severity · evidence"]
+        E3["Agent 4 — Call Decision<br/>call? + reason"]
+        E1 --> E2 --> E3
+    end
+
+    E --> AGENTS
+    AGENTS -->|"call = true"| F["📞 Vapi<br/>outbound voice call"]
+    F --> G{"🗣️ Your decision<br/>kill / pause / continue / fix"}
+
+    G -->|fix| H["🛠️ agents/fix.py<br/>propose → backup → apply → re-run"]
+    H -->|"corrected run"| B
+    G -->|kill / pause / continue| B
+
+    B --> I["📊 Live Dashboard<br/>loss curve · agent timeline · fixes (polls 3s)"]
+
+    classDef store fill:#1f2937,stroke:#60a5fa,color:#fff;
+    classDef ai fill:#312e81,stroke:#a5b4fc,color:#fff;
+    classDef action fill:#064e3b,stroke:#34d399,color:#fff;
+    class B store;
+    class E,AGENTS,E1,E2,E3 ai;
+    class F,H action;
+```
+
+### Technologies used
+
+```mermaid
+flowchart LR
+    subgraph APP ["Application"]
+        T1["Python 3.10+ · PyTorch"]
+        T2["Training examples<br/>(MNIST · Sentiment)"]
+    end
+    subgraph BACKEND ["Backend & Data"]
+        T3["InsForge<br/>Postgres BaaS · Auth · RLS · REST"]
+    end
+    subgraph AI ["AI / Agents"]
+        T4["Nebius AI Studio<br/>Llama-3.3-70B-Instruct"]
+    end
+    subgraph VOICE ["Voice"]
+        T5["Vapi<br/>Outbound AI calls"]
+    end
+    subgraph UI ["Frontend"]
+        T6["HTML/JS Dashboard<br/>live polling"]
+    end
+
+    APP --> BACKEND --> AI --> VOICE
+    BACKEND --> UI
+```
+
+<details>
+<summary>Detailed text diagram</summary>
+
 ```
 Training script
     │  push_log() every step
@@ -65,6 +128,8 @@ dashboard/index.html
   live-polls InsForge every 3s → loss chart, agent timeline,
   call decisions, applied fixes
 ```
+
+</details>
 
 ### Data model (InsForge / Postgres)
 

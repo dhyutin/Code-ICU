@@ -52,6 +52,26 @@
     .edge .fixinfo em { color: var(--red); font-style: normal; }
 
     .root-label { color: var(--muted); font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 0.5rem; }
+    .chain-head { display: flex; align-items: center; justify-content: space-between; gap: 0.6rem; margin-bottom: 0.5rem; }
+    .btn-restore {
+      background: var(--panel2); color: var(--text);
+      border: 1px solid var(--border); border-radius: 6px;
+      padding: 0.22rem 0.6rem; font: inherit; font-size: 0.7rem; cursor: pointer; white-space: nowrap;
+    }
+    .btn-restore:hover:not(:disabled) { border-color: var(--amber); color: var(--amber); }
+    .btn-restore:disabled { opacity: 0.45; cursor: default; }
+    .btn-restore.original { border-color: var(--violet); color: var(--violet); }
+    .btn-restore.original:hover:not(:disabled) { background: rgba(165,142,255,0.12); }
+    .edge .spacer { flex: 1; }
+    .spacer { flex: 1; }
+    .chain-head { cursor: pointer; }
+    .chain-head:hover .chain-name { color: var(--accent); }
+    .toggle { background: none; border: none; color: var(--muted); font-size: 0.85rem; cursor: pointer; padding: 0; transition: transform 0.15s ease; flex: none; }
+    .chain.open .toggle { transform: rotate(90deg); color: var(--accent); }
+    .chain-name { font-family: var(--mono); font-size: 0.88rem; color: var(--text); }
+    .chain-head .st { font-size: 0.62rem; text-transform: uppercase; letter-spacing: 0.04em; color: var(--muted); border: 1px solid var(--border); border-radius: 999px; padding: 0.05rem 0.45rem; }
+    .chain-count { color: var(--muted); font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.05em; }
+    .chain-body { margin-top: 0.7rem; }
     .empty { color: var(--muted); font-style: italic; }
     body.gated { visibility: hidden; }
   </style>
@@ -70,7 +90,7 @@
     </div>
   </header>
 
-  <p class="hint">Read top-to-bottom: a training run that was modified points down to the corrected re-run it was directed to, annotated with the fix that was applied.</p>
+  <p class="hint">Click a run to expand its lineage — a training run that was modified points down to the corrected re-run it was directed to, annotated with the fix that was applied.</p>
 
   <div class="chains" id="chains">
     <div class="empty">Loading…</div>
@@ -121,6 +141,24 @@
       </a>`;
     }
 
+    // A restore can't touch the local fs from the browser, so it flips the
+    // fix row to `rollback_requested`; the `python agents/fix.py watch` daemon
+    // does the real file restore from that fix's backup.
+    function restoreBtn(f, opts = {}) {
+      if (!f || !f.backup_path) return "";
+      const s = (f.status || "applied").toLowerCase();
+      const label = s === "rollback_requested" ? "Restoring…"
+        : s === "rolled_back" ? "Restored"
+        : s === "failed" ? "Restore failed"
+        : (opts.original ? "Restore original" : "Restore this version");
+      const disabled = s === "applied" ? "" : "disabled";
+      const cls = opts.original ? "btn-restore original" : "btn-restore";
+      const title = opts.original
+        ? "Revert the file to its state before any fix"
+        : "Revert the file to its state before this fix";
+      return `<button class="${cls}" data-fix-id="${esc(f.id)}" title="${title}" ${disabled}>${esc(label)}</button>`;
+    }
+
     function edgeHtml(child, fixByNew) {
       const f = fixByNew[child.name];
       if (!f) return `<div class="edge"><span class="arrow">&#8595;</span></div>`;
@@ -128,6 +166,8 @@
       return `<div class="edge">
         <span class="arrow">&#8595; fix</span>
         <span class="fixinfo">${esc(f.rationale || "code fix")}${f.file ? ` <code>${esc(f.file)}</code>` : ""}${err.type ? ` <em>(${esc(err.type)})</em>` : ""}</span>
+        <span class="spacer"></span>
+        ${restoreBtn(f)}
       </div>`;
     }
 
@@ -142,6 +182,9 @@
       }
       return html;
     }
+
+    // remembers which lineages the user expanded, so the 5s refresh keeps them open
+    const openChains = new Set();
 
     async function load() {
       const [runs, fixes, agg] = await Promise.all([fetchRuns(), fetchFixes(), fetchLogAgg()]);
@@ -161,11 +204,34 @@
         el.innerHTML = `<div class="empty">No runs yet. Start a run and apply a fix to see lineage here.</div>`;
         return;
       }
+
+      // names of every run in a root's subtree (to find that chain's fixes)
+      function subtreeNames(run) {
+        const names = [run.name];
+        for (const k of (children[run.id] || [])) names.push(...subtreeNames(k));
+        return names;
+      }
+
       el.innerHTML = roots.map(r => {
-        const hasChain = (children[r.id] || []).length > 0;
-        return `<div class="chain">
-          <div class="root-label">${hasChain ? "lineage" : "run"}</div>
-          ${renderTree(r, 0, ctx)}
+        const names = new Set(subtreeNames(r));
+        const count = names.size;
+        const chainFixes = fixes
+          .filter(f => names.has(f.run_id) && f.backup_path)
+          .sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
+        const original = chainFixes[0];
+        const status = (r.status || "").toLowerCase();
+        const isOpen = openChains.has(r.name);
+        return `<div class="chain ${isOpen ? "open" : ""}" data-name="${esc(r.name)}">
+          <div class="chain-head">
+            <button class="toggle" aria-label="expand">&#9656;</button>
+            <span class="dot ${status}"></span>
+            <span class="chain-name">${esc(r.name)}</span>
+            ${r.status ? `<span class="st">${esc(r.status)}</span>` : ""}
+            <span class="chain-count">${count > 1 ? `${count} runs in lineage` : "single run"}</span>
+            <span class="spacer"></span>
+            ${original ? restoreBtn(original, { original: true }) : ""}
+          </div>
+          <div class="chain-body" ${isOpen ? "" : "hidden"}>${renderTree(r, 0, ctx)}</div>
         </div>`;
       }).join("");
     }
@@ -173,6 +239,45 @@
     async function tick() {
       try { await load(); } catch (e) { console.error(e); }
     }
+
+    // collapse-by-default: nothing shows until a lineage is clicked open
+    document.getElementById("chains").addEventListener("click", (e) => {
+      if (e.target.closest(".btn-restore") || e.target.closest("a")) return;
+      const head = e.target.closest(".chain-head");
+      if (!head) return;
+      const chain = head.parentElement;
+      const name = chain.getAttribute("data-name");
+      const body = chain.querySelector(".chain-body");
+      if (body.hasAttribute("hidden")) {
+        body.removeAttribute("hidden");
+        chain.classList.add("open");
+        openChains.add(name);
+      } else {
+        body.setAttribute("hidden", "");
+        chain.classList.remove("open");
+        openChains.delete(name);
+      }
+    });
+
+    document.getElementById("chains").addEventListener("click", async (e) => {
+      const btn = e.target.closest(".btn-restore");
+      if (!btn || btn.disabled) return;
+      const id = btn.getAttribute("data-fix-id");
+      btn.disabled = true;
+      btn.textContent = "Restoring…";
+      try {
+        const { error } = await window.db
+          .from("fix_attempts")
+          .update({ status: "rollback_requested" })
+          .eq("id", id);
+        if (error) throw new Error(error.message);
+        await tick();
+      } catch (err) {
+        console.error(err);
+        btn.disabled = false;
+        btn.textContent = "Restore failed";
+      }
+    });
   </script>
 
   <script type="module">
